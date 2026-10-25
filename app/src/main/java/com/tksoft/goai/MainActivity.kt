@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.viewModels
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -46,11 +47,37 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material3.Slider
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -105,6 +132,13 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
+    private val vm: GameViewModel by viewModels()
+
+    override fun onStop() {
+        vm.saveKifu()
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // エッジ ツー エッジ表示。androidx の enableEdgeToEdge() は旧バージョン向けに非推奨 API
@@ -135,8 +169,34 @@ class MainActivity : ComponentActivity() {
 fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
-    var showNewGame by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var kifuIoMessage by remember { mutableStateOf<String?>(null) }
+    val exportKifuLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val count = withContext(Dispatchers.IO) { KifuHistoryManager.exportAllToUri(context, uri) }
+                kifuIoMessage = context.getString(R.string.kifu_export_success, count)
+            }
+        }
+    }
+    val importKifuLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val result = withContext(Dispatchers.IO) { KifuHistoryManager.importFromUri(context, uri) }
+                kifuIoMessage = buildString {
+                    append(context.getString(R.string.kifu_import_success, result.imported))
+                    if (result.skipped > 0) append(context.getString(R.string.kifu_import_skipped_suffix, result.skipped))
+                }
+            }
+        }
+    }
     // 準備完了ポップアップを bottomBar のすぐ上に出すため、bottomBar の高さを測る
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
@@ -237,17 +297,19 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             BackHandler { showMenu = false }
             FullScreenMenu(onClose = { showMenu = false }) {
                 val ready = vm.engineStatus == EngineStatus.Ready && !vm.thinking
-                MenuItem(Icons.Outlined.RestartAlt, text = { Text(stringResource(R.string.menu_new_game)) }) {
+                MenuItem(Icons.Outlined.RestartAlt, text = { Text(stringResource(R.string.menu_reset)) }) {
                     showMenu = false
-                    if (ready) showNewGame = true
+                    vm.reset()
                 }
-                MenuItem({ MarkIcon("●") }, text = { Text(stringResource(R.string.menu_play_black)) }) {
+                MenuItem(Icons.Outlined.ContentCut, text = { Text(stringResource(R.string.menu_delete_branches)) }) {
                     showMenu = false
-                    if (ready) vm.startNewGame(vm.settings.copy(humanColor = Stone.BLACK))
+                    vm.deleteBranches()
                 }
-                MenuItem({ MarkIcon("○") }, text = { Text(stringResource(R.string.menu_play_white)) }) {
+                MenuItem(Icons.Outlined.ContentCopy, text = { Text(stringResource(R.string.menu_copy_sgf)) }) {
                     showMenu = false
-                    if (ready) vm.startNewGame(vm.settings.copy(humanColor = Stone.WHITE))
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("SGF", vm.toSgf()))
+                    vm.message = context.getString(R.string.copied)
                 }
                 MenuItem(Icons.Outlined.Share, text = { Text(stringResource(R.string.menu_share_sgf)) }) {
                     showMenu = false
@@ -258,11 +320,41 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     }
                     context.startActivity(Intent.createChooser(send, null))
                 }
-                MenuItem(Icons.Outlined.ContentCopy, text = { Text(stringResource(R.string.menu_copy_sgf)) }) {
+                MenuItem({ MarkIcon("●") }, text = { Text(stringResource(R.string.menu_play_black)) }) {
                     showMenu = false
-                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.setPrimaryClip(ClipData.newPlainText("SGF", vm.toSgf()))
-                    vm.message = context.getString(R.string.copied)
+                    if (ready) vm.playAs(Stone.BLACK)
+                }
+                MenuItem({ MarkIcon("○") }, text = { Text(stringResource(R.string.menu_play_white)) }) {
+                    showMenu = false
+                    if (ready) vm.playAs(Stone.WHITE)
+                }
+                // 囲碁ではパスが着手の1つなので、盤上に置く手と同じく打てるときだけ
+                MenuItem(Icons.Outlined.SkipNext, text = { Text(stringResource(R.string.pass)) }) {
+                    showMenu = false
+                    vm.pass()
+                }
+                if (vm.isPlayingGame) {
+                    MenuItem(Icons.Outlined.Flag, text = { Text(stringResource(R.string.resign)) }) {
+                        showMenu = false
+                        vm.resign()
+                    }
+                }
+                MenuItem(Icons.Outlined.Settings, text = { Text(stringResource(R.string.menu_settings)) }) {
+                    showMenu = false
+                    showSettings = true
+                }
+                MenuItem(Icons.Outlined.History, text = { Text(stringResource(R.string.menu_history)) }) {
+                    showMenu = false
+                    showHistory = true
+                }
+                MenuItem(Icons.Outlined.Upload, text = { Text(stringResource(R.string.menu_export_all_history)) }) {
+                    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.JAPAN).format(Date())
+                    exportKifuLauncher.launch("go_kifu_$ts.zip")
+                    showMenu = false
+                }
+                MenuItem(Icons.Outlined.Download, text = { Text(stringResource(R.string.menu_import_history_zip)) }) {
+                    importKifuLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                    showMenu = false
                 }
                 MenuItem(Icons.Outlined.Info, text = { Text(stringResource(R.string.about)) }) {
                     showMenu = false
@@ -272,15 +364,191 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
         }
     }
 
-    if (showNewGame) {
-        NewGameDialog(
+    if (showSettings) {
+        SettingsDialog(
             initial = vm.settings,
-            onDismiss = { showNewGame = false },
-            onStart = {
-                showNewGame = false
-                vm.startNewGame(it)
+            onDismiss = { showSettings = false },
+            onSave = {
+                showSettings = false
+                vm.applySettings(it)
             },
         )
+    }
+
+    if (showHistory) {
+        HistoryDialog(
+            onDismiss = { showHistory = false },
+            onOpen = { id, record ->
+                showHistory = false
+                vm.openHistory(id, record)
+            },
+        )
+    }
+
+    kifuIoMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { kifuIoMessage = null },
+            title = { Text(stringResource(R.string.menu_history)) },
+            text = { Text(msg) },
+            confirmButton = { TextButton(onClick = { kifuIoMessage = null }) { Text("OK") } },
+        )
+    }
+}
+
+/** 過去の棋譜 (ShogiGUI と同じ。検索・開く・ゴミ箱へ入れる/戻す) */
+@Composable
+private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) -> Unit) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val historyEntries = remember { mutableStateListOf<KifuHistoryEntry>() }
+    var searchQuery by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val loaded = withContext(Dispatchers.IO) { KifuHistoryManager.loadIndex(context) }
+        historyEntries.clear()
+        historyEntries.addAll(loaded)
+    }
+    val filteredEntries by remember {
+        derivedStateOf {
+            val q = searchQuery.trim()
+            if (q.isBlank()) historyEntries.toList()
+            else historyEntries.filter { e ->
+                e.blackName.contains(q, ignoreCase = true) ||
+                    e.whiteName.contains(q, ignoreCase = true) ||
+                    e.displayDate.contains(q)
+            }
+        }
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                )
+                if (filteredEntries.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (historyEntries.isEmpty()) stringResource(R.string.history_empty_no_games)
+                            else stringResource(R.string.history_empty_no_matches),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(filteredEntries, key = { it.id }) { entry ->
+                            val isDeleted = entry.deletedAt != null
+                            Surface(
+                                // ゴミ箱に入れた棋譜は開けない（戻してから開く）
+                                enabled = !isDeleted,
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val record = withContext(Dispatchers.IO) {
+                                            KifuHistoryManager.bumpToTop(context, entry.id)
+                                            KifuHistoryManager.loadKifu(context, entry.id)
+                                        }
+                                        if (record != null) onOpen(entry.id, record)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .alpha(if (isDeleted) 0.38f else 1f)
+                                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+                                    ) {
+                                        Row(modifier = Modifier.fillMaxWidth()) {
+                                            Text(
+                                                "●${entry.blackName}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(0.5f)
+                                            )
+                                            Text(
+                                                "○${entry.whiteName}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(0.5f)
+                                            )
+                                        }
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.Bottom
+                                        ) {
+                                            Text(
+                                                entry.displayDate,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (entry.moveCount > 0) {
+                                                Text(
+                                                    stringResource(R.string.history_move_count, entry.moveCount),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (entry.gameResult.isNotEmpty()) {
+                                                Text(
+                                                    resultText(entry.gameResult),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+                                    // 削除はゴミ箱に入れるだけで、24時間以内なら戻せる
+                                    IconButton(onClick = {
+                                        val idx = historyEntries.indexOfFirst { it.id == entry.id }
+                                        if (idx >= 0) historyEntries[idx] = entry.copy(
+                                            deletedAt = if (isDeleted) null else System.currentTimeMillis()
+                                        )
+                                        if (!isDeleted) {
+                                            android.widget.Toast.makeText(
+                                                context, R.string.history_deleted_toast, android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            KifuHistoryManager.setDeleted(context, entry.id, !isDeleted)
+                                        }
+                                    }) {
+                                        if (isDeleted) Icon(painterResource(R.drawable.undo_24px), stringResource(R.string.history_restore))
+                                        else Icon(painterResource(R.drawable.delete_24px), stringResource(R.string.history_delete))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+                }
+            }
+        }
     }
 }
 
@@ -288,8 +556,9 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
 @Composable
 private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> Unit) {
     val game = vm.game
-    val human = vm.settings.humanColor
-    val ai = human.opponent
+    val bottom = vm.humanColor ?: Stone.BLACK
+    val top = bottom.opponent
+    fun nameOf(s: Stone) = if (s == Stone.BLACK) vm.blackName else vm.whiteName
     val result = vm.result
     val resultText = result?.let { resultText(it.code) } ?: ""
     fun captures(s: Stone) = if (s == Stone.BLACK) game.capturedByBlack else game.capturedByWhite
@@ -297,10 +566,10 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
 
     Box(modifier = Modifier.fillMaxWidth()) {
         PlayerStatusSection(
-            name = stringResource(R.string.ai_name, vm.settings.level.ordinal + 1),
-            stone = ai,
-            captures = captures(ai),
-            isActive = turn == ai,
+            name = nameOf(top),
+            stone = top,
+            captures = captures(top),
+            isActive = turn == top,
             gameResult = when {
                 vm.thinking && game.isEndedByPasses -> stringResource(R.string.counting)
                 vm.thinking -> stringResource(R.string.ai_thinking)
@@ -327,6 +596,8 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
             candidates = candidates,
             result = result,
             pvStartMove = vm.pvStartMove,
+            dragToPlace = vm.settings.dragToPlace,
+            ghostColor = if (vm.canPlay) game.toPlay else null,
         )
         when (val s = vm.engineStatus) {
             is EngineStatus.Loading -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -342,11 +613,32 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
         }
     }
 
+    // 読み筋で、石が取られた後に同じ点へ打った手 (盤上に番号を書けない手) を盤の外に書く
+    vm.pvStartMove?.let { start ->
+        val replays = pvNumbering(game, start).replays
+        if (replays.isNotEmpty()) {
+            // 新聞の棋譜と同じく「打ち直した手 [その点の盤上の石]」を並べる
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                replays.forEach { (later, at) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        NumberedStoneIcon(later, Modifier.size(28.dp))
+                        Text(" [", style = MaterialTheme.typography.titleMedium)
+                        NumberedStoneIcon(at, Modifier.size(28.dp))
+                        Text("]", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
+        }
+    }
+
     PlayerStatusSection(
-        name = stringResource(R.string.you),
-        stone = human,
-        captures = captures(human),
-        isActive = turn == human,
+        name = nameOf(bottom),
+        stone = bottom,
+        captures = captures(bottom),
+        isActive = turn == bottom,
         gameResult = resultText,
     )
 }
@@ -355,18 +647,20 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
 @Composable
 private fun PvCards(vm: GameViewModel) {
     val (_, analysis) = vm.shownAnalysis ?: return
-    val human = vm.settings.humanColor
+    val viewer = vm.humanColor ?: vm.shownAnalysis?.first?.game?.toPlay ?: Stone.BLACK
+    val label = if (vm.humanColor != null) R.string.evaluation_format else
+        if (viewer == Stone.BLACK) R.string.evaluation_format_black else R.string.evaluation_format_white
     analysis.candidates.sortedBy { it.order }.take(3).forEachIndexed { i, c ->
         val rank = i + 1
         val first = c.pv.firstOrNull() ?: c.move
         val mover = if (vm.shownAnalysis?.first?.game?.toPlay == Stone.WHITE) "○" else "●"
-        val winrate = if (human == Stone.BLACK) c.winrateBlack else 1 - c.winrateBlack
-        val lead = if (human == Stone.BLACK) c.scoreLeadBlack else -c.scoreLeadBlack
+        val winrate = if (viewer == Stone.BLACK) c.winrateBlack else 1 - c.winrateBlack
+        val lead = if (viewer == Stone.BLACK) c.scoreLeadBlack else -c.scoreLeadBlack
         PvInfoCard(
             rank = rank,
-            firstMove = "$mover ${GtpCoord.toGtp(first, BOARD_SIZE).replace("pass", stringResource(R.string.pass))}",
+            firstMove = "$mover ${GtpCoord.display(first, stringResource(R.string.pass))}",
             evaluation = stringResource(
-                R.string.evaluation_format,
+                label,
                 String.format(Locale.US, "%.0f", winrate * 100),
                 String.format(Locale.US, "%+.1f", lead),
             ),
@@ -378,44 +672,57 @@ private fun PvCards(vm: GameViewModel) {
 @Composable
 private fun BottomButtons(vm: GameViewModel) {
     val ready = vm.engineStatus == EngineStatus.Ready
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BarButton(
-            icon = { Icon(painterResource(R.drawable.undo_24px), null) },
-            label = stringResource(R.string.undo),
-            enabled = !vm.thinking && vm.currentNode.parent != null,
-            onClick = vm::undo,
+            icon = { Icon(Icons.Outlined.ContentPaste, stringResource(R.string.action_load_from_clipboard_desc)) },
+            label = stringResource(R.string.action_load_from_clipboard_label),
+            enabled = !vm.thinking,
+            onClick = {
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+                if (text.isNullOrBlank()) vm.message = context.getString(R.string.clipboard_empty)
+                else vm.loadSgf(text)
+            },
         )
-        BarButton(
-            icon = { Icon(Icons.Outlined.SkipNext, null) },
-            label = stringResource(R.string.pass),
-            enabled = vm.canPlay,
-            onClick = vm::pass,
-        )
+        val active = vm.isPlayingGame || (vm.analyzing && !vm.autoAnalyzing)
         BarButton(
             icon = {
                 Icon(
-                    painterResource(if (vm.analyzing) R.drawable.stop_circle_24px else R.drawable.network_intelligence_24px),
-                    null,
+                    painterResource(if (active) R.drawable.stop_circle_24px else R.drawable.network_intelligence_24px),
+                    stringResource(R.string.action_analyze),
                 )
             },
             label = when {
+                vm.isPlayingGame -> stringResource(R.string.action_stop_game)
                 vm.analyzing -> stringResource(R.string.action_stop)
                 !ready -> stringResource(R.string.action_preparing)
                 else -> stringResource(R.string.action_analyze)
             },
-            enabled = vm.analyzing || (ready && !vm.thinking),
-            highlighted = vm.analyzing,
-            onClick = vm::toggleAnalysis,
+            // 対局中止はエンジンが考えている間でもできるようにする
+            enabled = vm.isPlayingGame || vm.analyzing || (ready && !vm.thinking),
+            highlighted = active,
+            onClick = vm::onAnalyzeButton,
         )
         BarButton(
-            icon = { Icon(Icons.Outlined.Flag, null) },
-            label = stringResource(R.string.resign),
-            enabled = vm.canPlay && !vm.isReviewMode,
-            onClick = vm::resign,
+            icon = {
+                if (vm.autoAnalyzing) Icon(painterResource(R.drawable.stop_circle_24px), stringResource(R.string.action_stop))
+                else Icon(Icons.Outlined.FastForward, stringResource(R.string.action_analyze_all))
+            },
+            label = if (vm.autoAnalyzing) stringResource(R.string.action_stop) else stringResource(R.string.action_analyze_all),
+            enabled = vm.autoAnalyzing || (ready && !vm.thinking && !vm.isPlayingGame),
+            highlighted = vm.autoAnalyzing,
+            onClick = vm::onAutoAnalyzeButton,
+        )
+        BarButton(
+            icon = { Icon(painterResource(R.drawable.undo_24px), stringResource(R.string.action_main_line)) },
+            label = stringResource(R.string.action_main_line),
+            enabled = !vm.isOnMainLine && !vm.thinking,
+            onClick = vm::goToMainLine,
         )
     }
 }
@@ -461,18 +768,27 @@ private fun resultText(code: String): String {
 }
 
 @Composable
-private fun NewGameDialog(initial: GameSettings, onDismiss: () -> Unit, onStart: (GameSettings) -> Unit) {
+private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave: (GameSettings) -> Unit) {
     var s by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.new_game)) },
+        title = { Text(stringResource(R.string.menu_settings)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.your_color), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.board_size), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(Stone.BLACK, Stone.WHITE).forEach { c ->
-                        FilterChip(s.humanColor == c, { s = s.copy(humanColor = c) }, { Text(colorName(c)) })
+                    BOARD_SIZES.forEach { n ->
+                        FilterChip(s.boardSize == n, {
+                            // 盤の大きさを変えたら、その盤で選べない置石は外す
+                            s = s.copy(boardSize = n, handicap = s.handicap.coerceAtMost(maxHandicap(n)))
+                        }, { Text(stringResource(R.string.board_size_format, n)) })
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(stringResource(R.string.placement), style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(!s.dragToPlace, { s = s.copy(dragToPlace = false) }, { Text(stringResource(R.string.placement_tap)) })
+                    FilterChip(s.dragToPlace, { s = s.copy(dragToPlace = true) }, { Text(stringResource(R.string.placement_drag)) })
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.level), style = MaterialTheme.typography.labelLarge)
@@ -492,14 +808,40 @@ private fun NewGameDialog(initial: GameSettings, onDismiss: () -> Unit, onStart:
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.handicap), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.handicap_next_reset), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0, 2, 3, 4, 5).forEach { h ->
+                    (listOf(0) + (2..maxHandicap(s.boardSize))).forEach { h ->
                         FilterChip(s.handicap == h, {
                             s = s.copy(handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi)
                         }, { Text(if (h == 0) stringResource(R.string.handicap_none) else "$h") })
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                // 「この局面から全て解析」で1手あたりに使う時間（単発の解析は停止するまで考え続ける）。
+                // 短い時間ほど細かく選べるよう、スライダーは対数目盛り（倍になるごとに同じ距離）で連続的に動かし、
+                // 値は0.01秒単位に丸める。つまみは丸めた値ではなく指の位置をそのまま追うので、滑らかに動く
+                var thinkSliderPos by remember { mutableFloatStateOf(thinkTimeToSlider(s.analysisTimeMs)) }
+                // 表示は常に小数2桁 ("1.00") にし、数字も等幅にして、値によって行の長さが変わらないようにする
+                val thinkTimeSec = "%.2f".format(Locale.US, s.analysisTimeMs / 1000.0)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(stringResource(R.string.settings_think_time_label), style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = thinkTimeSec,
+                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(stringResource(R.string.settings_think_time_unit), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                Slider(
+                    value = thinkSliderPos,
+                    onValueChange = {
+                        thinkSliderPos = it
+                        s = s.copy(analysisTimeMs = sliderToThinkTime(it))
+                    },
+                    valueRange = 0f..1f
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.komi), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -509,9 +851,23 @@ private fun NewGameDialog(initial: GameSettings, onDismiss: () -> Unit, onStart:
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onStart(s) }) { Text(stringResource(R.string.start)) } },
+        confirmButton = { TextButton(onClick = { onSave(s) }) { Text(stringResource(R.string.settings_save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
+}
+
+// 設定の思考時間（「この局面から全て解析」で1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
+// ShogiGUI と同じく対数目盛りで 0.05秒〜5秒
+private const val minThinkTimeMs = 50L
+private const val maxThinkTimeMs = 5000L
+private fun thinkTimeToSlider(ms: Long): Float {
+    val t = ms.coerceIn(minThinkTimeMs, maxThinkTimeMs).toDouble()
+    return (kotlin.math.ln(t / minThinkTimeMs) / kotlin.math.ln(maxThinkTimeMs.toDouble() / minThinkTimeMs)).toFloat()
+}
+private fun sliderToThinkTime(pos: Float): Long {
+    val t = minThinkTimeMs * Math.pow(maxThinkTimeMs.toDouble() / minThinkTimeMs, pos.coerceIn(0f, 1f).toDouble())
+    // 0.01秒単位に丸める
+    return (Math.round(t / 10.0) * 10).coerceIn(minThinkTimeMs, maxThinkTimeMs)
 }
 
 /** エンジン準備完了のポップアップ本体 (ShogiGUI の EngineReadyToast)。Surface は背後へのタッチを遮るため、Box + background で描画する */

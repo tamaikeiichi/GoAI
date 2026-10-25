@@ -60,27 +60,35 @@ android {
 }
 
 // ===== KataGo のネットワーク (重み) =====
-// 約 98MB あり GitHub に置けないので、リポジトリには含めずビルド時にダウンロードする。
-// kata9x9-b18c384nbt-20231025: 9路盤専用に追加学習された公式ネット (KataGo Neural Network License, MIT 相当)
-// https://katagotraining.org/extra_networks/
-val katagoModelUrl =
+// 大きくて GitHub に置けないので、リポジトリには含めずビルド時にダウンロードする (KataGoEngine.kt の KataGoModel)。
+// - kata9x9-b18c384nbt-20231025 (約98MB): 9路盤専用に追加学習された公式ネット
+//   (KataGo Neural Network License, MIT 相当) https://katagotraining.org/extra_networks/
+// - g170e-b10c128-s1141046784-d204142634 (約14MB): 13路・19路用の小さな公式ネット (g170 系は CC0)
+//   https://github.com/lightvector/KataGo/releases/tag/v1.3
+val katagoModels = mapOf(
     "https://media.katagotraining.org/uploaded/networks/models_extra/kata9x9-b18c384nbt-20231025.bin.gz"
-val katagoModelFile = layout.projectDirectory.file("src/main/assets/katago_model_9x9.bin.gz.dat")
+        to "katago_model_9x9.bin.gz.dat",
+    "https://github.com/lightvector/KataGo/releases/download/v1.3/g170e-b10c128-s1141046784-d204142634.txt.gz"
+        to "katago_model_b10.txt.gz.dat",
+)
+val assetsDir = layout.projectDirectory.dir("src/main/assets")
 
 val downloadKataGoModel = tasks.register("downloadKataGoModel") {
-    description = "Downloads the KataGo 9x9 network into assets if it is missing"
-    val url = katagoModelUrl
-    val target = katagoModelFile.asFile
-    outputs.file(target)
-    onlyIf { !target.exists() }
+    description = "Downloads the KataGo networks into assets if they are missing"
+    val targets = katagoModels.map { (url, name) -> url to assetsDir.file(name).asFile }
+    outputs.files(targets.map { it.second })
+    onlyIf { targets.any { !it.second.exists() } }
     doLast {
-        target.parentFile.mkdirs()
-        val tmp = File(target.parentFile, target.name + ".part")
-        logger.lifecycle("Downloading $url")
-        URI(url).toURL().openStream().use { input ->
-            tmp.outputStream().use { output -> input.copyTo(output) }
+        for ((url, target) in targets) {
+            if (target.exists()) continue
+            target.parentFile.mkdirs()
+            val tmp = File(target.parentFile, target.name + ".part")
+            logger.lifecycle("Downloading $url")
+            URI(url).toURL().openStream().use { input ->
+                tmp.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!tmp.renameTo(target)) error("Failed to move $tmp to $target")
         }
-        if (!tmp.renameTo(target)) error("Failed to move $tmp to $target")
     }
 }
 

@@ -1,7 +1,15 @@
 package com.tksoft.goai
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,16 +27,67 @@ import kotlin.math.roundToInt
 /** 通常の碁盤の色 (読み筋の分岐上では ShogiGUI と同じく候補順位の色にする) */
 val woodBoardColor = Color(0xFFDCB35C)
 private val lineColor = Color(0xFF3A2A10)
+/** 座標の文字色 (OGS の木目の盤と同じ) */
+private val labelColor = Color(0xFF444444)
+/** 盤の端から最初の線までのマス数: 座標欄 1 マス + 半マス (OGS と同じ) */
+private const val MARGIN = 1.5f
 private const val COLUMN_LABELS = "ABCDEFGHJKLMNOPQRST"
+/** 碁盤の目の縦横比。実物の碁盤 (目の幅 約 22mm, 高さ 約 23.7mm) と同じく少し縦長にする */
+const val BOARD_CELL_ASPECT = 1.07f
+
+/** 番号付きの石 (読み筋の手順) */
+data class NumberedStone(val number: Int, val color: Stone)
+
+/**
+ * 読み筋の手順の番号。盤上には、その点に最初に打たれた手の番号を書く。
+ * 石が取られた後に同じ点へ打たれた手は盤上に書けないので、新聞の棋譜と同じく
+ * 「その手 [盤上の石]」の組 (replays) にして盤の外に書く
+ */
+class PvNumbering(
+    val onBoard: Map<Pair<Int, Int>, NumberedStone>,
+    val replays: List<Pair<NumberedStone, NumberedStone>>,
+)
+
+fun pvNumbering(game: GoGame, start: Int): PvNumbering {
+    val onBoard = LinkedHashMap<Pair<Int, Int>, NumberedStone>()
+    val replays = mutableListOf<Pair<NumberedStone, NumberedStone>>()
+    game.moves.forEachIndexed { i, m ->
+        val mv = m.move
+        if (i < start || mv !is Move.Play) return@forEachIndexed
+        val stone = NumberedStone(i - start + 1, m.color)
+        val first = onBoard[mv.x to mv.y]
+        if (first == null) onBoard[mv.x to mv.y] = stone else replays.add(stone to first)
+    }
+    return PvNumbering(onBoard, replays)
+}
+
+/** 盤の外に書く番号付きの石 (盤上の石と同じ描き方) */
+@Composable
+fun NumberedStoneIcon(stone: NumberedStone, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val d = this.size.minDimension
+        drawStone(Offset(this.size.width / 2, this.size.height / 2), d / 0.96f, stone.color, alpha = 1f)
+        drawLabel(
+            stone.number.toString(), Offset(this.size.width / 2, this.size.height / 2),
+            d * if (stone.number >= 100) 0.42f else if (stone.number >= 10) 0.5f else 0.6f,
+            if (stone.color == Stone.BLACK) Color.White else Color.Black,
+        )
+    }
+}
 
 /** 盤上に示す候補手 (解析中) */
 data class BoardCandidate(val move: Move.Play, val color: Color, val label: String)
 
 /**
  * 碁盤。将棋盤と違い、石はマスの中ではなく線の交点に置く。
- * 盤の外側に1マス分の余白を取り、そこに座標 (A〜J, 9〜1) を書く
+ * 座標は OGS (online-go.com) と同じく盤の外側に1マス分の欄を設けて書く。上下に数字 (左から 1〜)、
+ * 左右にアルファベット (上から A〜、I は使わない) を太字で書く。左上が 1A
+ * 目は実物の碁盤と同じく少し縦長 (BOARD_CELL_ASPECT) で、石は正円
  *
  * @param pvStartMove 読み筋の分岐を表示中なら、番号を付け始める手数 (その手から 1, 2, 3...)
+ * @param dragToPlace true なら、触れた位置のやや上 (指に隠れない所) に半透明の石を出し、
+ *   ドラッグして離した交点に打つ。13路・19路で交点を正確にタップしにくいとき用
+ * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
  */
 @Composable
 fun GoBoardView(
@@ -39,28 +98,58 @@ fun GoBoardView(
     candidates: List<BoardCandidate> = emptyList(),
     result: GameResult? = null,
     pvStartMove: Int? = null,
+    dragToPlace: Boolean = false,
+    ghostColor: Stone? = null,
 ) {
     val size = game.size
-    // 交点の数 + 両側の余白 (座標用に 0.5 マスずつ広げる)
-    val cells = size + 1f
+    // 交点の数 + 両側の余白 (座標欄 1 マス + 半マスずつ)
+    val cells = size - 1 + 2 * MARGIN
+    // ドラッグで打つときの半透明の石の位置
+    var ghost by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // 半透明の石を指からどれだけ上に出すか (指先に隠れない程度)
+    val liftPx = with(LocalDensity.current) { 44.dp.toPx() }
     Canvas(
         modifier = modifier
-            .aspectRatio(1f)
-            .pointerInput(size) {
-                detectTapGestures { pos ->
-                    val cell = this.size.width / cells
-                    val x = (pos.x / cell - 1f).roundToInt()
-                    val y = (pos.y / cell - 1f).roundToInt()
-                    if (x in 0 until size && y in 0 until size) onTap(x, y)
+            .aspectRatio(1f / BOARD_CELL_ASPECT)
+            .pointerInput(size, dragToPlace) {
+                fun point(pos: Offset, lift: Float): Pair<Int, Int>? {
+                    val x = (pos.x / (this.size.width / cells) - MARGIN).roundToInt()
+                    val y = ((pos.y - lift) / (this.size.height / cells) - MARGIN).roundToInt()
+                    return if (x in 0 until size && y in 0 until size) x to y else null
+                }
+                if (!dragToPlace) {
+                    detectTapGestures { pos -> point(pos, 0f)?.let { (x, y) -> onTap(x, y) } }
+                } else {
+                    // 指を置いている間は盤のスクロールより石の位置合わせを優先するので、イベントを消費する
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        ghost = point(down.position, liftPx)
+                        try {
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) {
+                                    ghost?.let { (x, y) -> onTap(x, y) }
+                                    break
+                                }
+                                ghost = point(change.position, liftPx)
+                                change.consume()
+                            }
+                        } finally {
+                            ghost = null
+                        }
+                    }
                 }
             }
     ) {
+        // cell は目の幅。石・印の大きさは幅を基準にする (縦は cellH)
         val cell = this.size.width / cells
-        fun center(x: Int, y: Int) = Offset(cell * (x + 1f), cell * (y + 1f))
+        val cellH = this.size.height / cells
+        fun center(x: Int, y: Int) = Offset(cell * (x + MARGIN), cellH * (y + MARGIN))
 
         drawRect(boardColor)
-        drawGrid(size, cell)
-        drawCoordinates(size, cell)
+        drawGrid(size, cell, cellH)
+        drawCoordinates(size, cell, cellH)
 
         val board = game.board
         val dead = result?.deadStones ?: emptySet()
@@ -94,15 +183,11 @@ fun GoBoardView(
         }
 
         if (pvStartMove != null) {
-            // 読み筋の手順: 分岐の起点からの手に番号を付ける (同じ点に何度も打たれたら最後の手)
-            val numbers = HashMap<Pair<Int, Int>, Int>()
-            game.moves.forEachIndexed { i, m ->
-                val mv = m.move
-                if (i >= pvStartMove && mv is Move.Play) numbers[mv.x to mv.y] = i - pvStartMove + 1
-            }
-            numbers.forEach { (p, num) ->
+            // 読み筋の手順: 分岐の起点からの手に番号を付ける (同じ点に打ち直した手は盤の外に書く: pvNumbering)
+            pvNumbering(game, pvStartMove).onBoard.forEach { (p, numbered) ->
                 val stone = board[p.first, p.second]
                 if (stone == Stone.EMPTY) return@forEach
+                val num = numbered.number
                 drawLabel(
                     num.toString(), center(p.first, p.second), cell * if (num >= 10) 0.42f else 0.5f,
                     if (stone == Stone.BLACK) Color.White else Color.Black,
@@ -123,6 +208,16 @@ fun GoBoardView(
             }
         }
 
+        // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する
+        val g = ghost
+        if (g != null && ghostColor != null && board[g.first, g.second] == Stone.EMPTY) {
+            val c = center(g.first, g.second)
+            val guide = lineColor.copy(alpha = 0.5f)
+            drawLine(guide, Offset(cell * MARGIN, c.y), Offset(cell * (size - 1 + MARGIN), c.y), strokeWidth = cell * 0.06f)
+            drawLine(guide, Offset(c.x, cellH * MARGIN), Offset(c.x, cellH * (size - 1 + MARGIN)), strokeWidth = cell * 0.06f)
+            drawStone(c, cell, ghostColor, alpha = 0.55f)
+        }
+
         // 解析中の候補手: 読み筋カードと同じ色の丸と順位
         candidates.forEach { cand ->
             val c = center(cand.move.x, cand.move.y)
@@ -133,15 +228,15 @@ fun GoBoardView(
     }
 }
 
-private fun DrawScope.drawGrid(size: Int, cell: Float) {
-    val start = cell
-    val end = cell * size
+private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float) {
     val stroke = (cell * 0.03f).coerceAtLeast(1f)
+    val last = size - 1 + MARGIN
     for (i in 0 until size) {
-        val p = cell * (i + 1f)
+        val px = cell * (i + MARGIN)
+        val py = cellH * (i + MARGIN)
         val w = if (i == 0 || i == size - 1) stroke * 2 else stroke
-        drawLine(lineColor, Offset(start, p), Offset(end, p), strokeWidth = w)
-        drawLine(lineColor, Offset(p, start), Offset(p, end), strokeWidth = w)
+        drawLine(lineColor, Offset(cell * MARGIN, py), Offset(cell * last, py), strokeWidth = w)
+        drawLine(lineColor, Offset(px, cellH * MARGIN), Offset(px, cellH * last), strokeWidth = w)
     }
     // 星 (9路盤は4隅の三々の内側と天元)
     val stars = when (size) {
@@ -151,22 +246,25 @@ private fun DrawScope.drawGrid(size: Int, cell: Float) {
         else -> emptyList()
     }
     stars.forEach { (x, y) ->
-        drawCircle(lineColor, radius = cell * 0.08f, center = Offset(cell * (x + 1f), cell * (y + 1f)))
+        drawCircle(lineColor, radius = cell * 0.08f, center = Offset(cell * (x + MARGIN), cellH * (y + MARGIN)))
     }
 }
 
 /** 盤の外側の座標。GTP や読み筋カードと同じ表記 (列は I を飛ばした A〜, 行は下から 1〜) */
-private fun DrawScope.drawCoordinates(size: Int, cell: Float) {
-    val color = lineColor.copy(alpha = 0.7f)
-    val ts = cell * 0.3f
+private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float) {
+    val ts = cell * 0.36f
+    // 座標欄 (外側の1マス) の真ん中に書く
+    val far = size - 1 + 2 * MARGIN - 0.5f
     for (i in 0 until size) {
-        val p = cell * (i + 1f)
-        val col = COLUMN_LABELS[i].toString()
-        val row = (size - i).toString()
-        drawLabel(col, Offset(p, cell * 0.4f), ts, color, bold = false)
-        drawLabel(col, Offset(p, cell * (size + 0.6f)), ts, color, bold = false)
-        drawLabel(row, Offset(cell * 0.4f, p), ts, color, bold = false)
-        drawLabel(row, Offset(cell * (size + 0.6f), p), ts, color, bold = false)
+        val px = cell * (i + MARGIN)
+        val py = cellH * (i + MARGIN)
+        // 左上を 1A にする (新聞の棋譜と同じく上辺に数字、左辺に記号)。GTP の座標 (列が記号、行は下から) とは違う
+        val col = (i + 1).toString()
+        val row = COLUMN_LABELS[i].toString()
+        drawLabel(col, Offset(px, cellH * 0.5f), ts, labelColor)
+        drawLabel(col, Offset(px, cellH * far), ts, labelColor)
+        drawLabel(row, Offset(cell * 0.5f, py), ts, labelColor)
+        drawLabel(row, Offset(cell * far, py), ts, labelColor)
     }
 }
 

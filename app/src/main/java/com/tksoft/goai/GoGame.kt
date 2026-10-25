@@ -102,6 +102,12 @@ object GtpCoord {
         is Move.Play -> "${LETTERS[move.x]}${size - move.y}"
     }
 
+    /** 画面に出す座標。盤の座標と同じく左上を 1A にする (列は左から数字、行は上から記号) */
+    fun display(move: Move, passLabel: String): String = when (move) {
+        is Move.Pass -> passLabel
+        is Move.Play -> "${move.x + 1}${LETTERS[move.y]}"
+    }
+
     /** "pass" / "resign" 以外の不正な文字列は null */
     fun fromGtp(s: String, size: Int): Move? {
         val t = s.trim().uppercase()

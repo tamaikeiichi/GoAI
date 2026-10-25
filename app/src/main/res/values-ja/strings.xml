@@ -1,9 +1,6 @@
 <resources>
     <string name="pass">パス</string>
-    <string name="undo">待った</string>
     <string name="resign">投了</string>
-    <string name="new_game">新規対局</string>
-    <string name="start">開始</string>
     <string name="about">情報</string>
     <string name="licenses">オープンソースライセンス</string>
     <string name="black">黒</string>
@@ -17,7 +14,6 @@
     <string name="result_draw">持碁</string>
     <string name="result_resign">%1$sの中押し勝ち</string>
     <string name="result_points">%1$sの %2$s 目勝ち</string>
-    <string name="your_color">あなたの石</string>
     <string name="level">AI の強さ</string>
     <string name="rules">ルール</string>
     <string name="rules_japanese">日本ルール</string>
@@ -25,7 +21,7 @@
     <string name="handicap">置石</string>
     <string name="handicap_none">なし</string>
     <string name="komi">コミ</string>
-    <string name="about_text">GoAI は無料・オープンソースの9路盤囲碁アプリです。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワークは katagotraining.org の 9路盤用ネット (kata9x9-b18c384nbt-20231025) です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">GoAI は無料・オープンソースの囲碁アプリ (9路・13路・19路)です。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワークは、9路盤では 9路盤専用の kata9x9-b18c384nbt-20231025、13路・19路では g170e-b10c128 (いずれも KataGo の公式ネット) です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">アゲハマ %1$d</string>
     <string name="move_counter">%1$d手目 / %2$d手</string>
     <string name="nav_previous">前へ</string>
@@ -33,9 +29,6 @@
     <string name="menu_content_description">メニュー</string>
     <string name="close">閉じる</string>
     <string name="engine_ready_toast">%1$s 準備完了</string>
-    <string name="menu_new_game">新規対局…</string>
-    <string name="menu_play_black">黒番で対局</string>
-    <string name="menu_play_white">白番で対局</string>
     <string name="menu_share_sgf">棋譜を共有 (SGF)</string>
     <string name="menu_copy_sgf">棋譜をコピー (SGF)</string>
     <string name="copied">コピーしました</string>
@@ -44,4 +37,40 @@
     <string name="action_preparing">準備中</string>
     <string name="you">あなた</string>
     <string name="ai_name">KataGo Lv%1$d</string>
+    <string name="menu_reset">リセット</string>
+    <string name="menu_delete_branches">分岐を削除</string>
+    <string name="menu_settings">設定</string>
+    <string name="menu_history">過去の棋譜</string>
+    <string name="menu_export_all_history">過去の棋譜をすべてエクスポート</string>
+    <string name="menu_import_history_zip">ZIP圧縮した複数のSGFファイルを過去の棋譜としてインポート</string>
+    <string name="menu_play_black">黒番を持って対局</string>
+    <string name="menu_play_white">白番を持って対局</string>
+    <string name="history_search_placeholder">対局者名・日付で検索</string>
+    <string name="history_empty_no_games">棋譜がありません</string>
+    <string name="history_empty_no_matches">該当する棋譜がありません</string>
+    <string name="history_move_count">%1$d手</string>
+    <string name="history_delete">削除</string>
+    <string name="history_restore">元に戻す</string>
+    <string name="history_deleted_toast">24時間後に完全に削除されます</string>
+    <string name="kifu_export_success">%1$d件の棋譜をエクスポートしました</string>
+    <string name="kifu_import_success">%1$d件の棋譜をインポートしました</string>
+    <string name="kifu_import_skipped_suffix">（%1$d件は読み込めませんでした）</string>
+    <string name="action_load_from_clipboard_desc">クリップボードから読込</string>
+    <string name="action_load_from_clipboard_label">読込（クリップボードから）</string>
+    <string name="action_stop_game">対局中止</string>
+    <string name="action_main_line">本譜</string>
+    <string name="clipboard_empty">クリップボードが空です</string>
+    <string name="sgf_load_failed">SGF を読み込めませんでした: %1$s</string>
+    <string name="evaluation_format_black">黒の勝率 %1$s%%  目数 %2$s</string>
+    <string name="evaluation_format_white">白の勝率 %1$s%%  目数 %2$s</string>
+    <string name="handicap_next_reset">置石（次のリセットから）</string>
+    <string name="settings_save">保存</string>
+    <string name="board_size">盤の大きさ（変えるとリセット）</string>
+    <string name="board_size_format">%1$d路</string>
+    <string name="placement">石の置き方</string>
+    <string name="placement_tap">タップ</string>
+    <string name="placement_drag">ドラッグ（指の上に石を表示）</string>
+    <string name="action_analyze_all">この局面から全て解析</string>
+    <string name="settings_think_time_label">全て解析の思考時間</string>
+    <string name="settings_think_time_unit">秒</string>
 </resources>

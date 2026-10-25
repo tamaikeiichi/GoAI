@@ -86,20 +86,31 @@ class KataGoEngine {
 }
 
 /** KataGo に渡すファイル (モデルと設定) を filesDir に用意する */
+/**
+ * 使うネット (重み)。9路盤は 9路専用に追加学習された強いネット、13路・19路は
+ * スマホの CPU でも速く打てる小さなネットにする。どちらもビルド時に assets へダウンロードする (app/build.gradle.kts)。
+ * assets の .gz は aapt が展開してしまうので .dat を付けて置き、コピー先で元の名前に戻す
+ * (KataGo は拡張子 .gz を見て gzip として読む)
+ */
+enum class KataGoModel(val asset: String, val file: String, val displayName: String) {
+    NET_9X9("katago_model_9x9.bin.gz.dat", "katago_model_9x9.bin.gz", "kata9x9-b18c384nbt"),
+    NET_GENERAL("katago_model_b10.txt.gz.dat", "katago_model_b10.txt.gz", "g170e-b10c128");
+
+    companion object {
+        fun forBoardSize(size: Int) = if (size == 9) NET_9X9 else NET_GENERAL
+    }
+}
+
 object KataGoFiles {
-    // assets の .gz は aapt が展開してしまうので .dat を付けて置き、コピー先で .bin.gz に戻す
-    // (KataGo は拡張子 .gz を見て gzip として読む)
-    private const val MODEL_ASSET = "katago_model_9x9.bin.gz.dat"
-    private const val MODEL_FILE = "katago_model_9x9.bin.gz"
     private const val CONFIG_NAME = "gtp.cfg"
 
     /** assets のモデルを filesDir にコピーする (サイズが同じならコピー済みとみなす)。IO スレッドで呼ぶこと */
-    fun prepareModel(context: Context): File {
-        val target = File(context.filesDir, MODEL_FILE)
-        val assetSize = context.assets.openFd(MODEL_ASSET).use { it.length }
+    fun prepareModel(context: Context, model: KataGoModel): File {
+        val target = File(context.filesDir, model.file)
+        val assetSize = context.assets.openFd(model.asset).use { it.length }
         if (target.exists() && target.length() == assetSize) return target
-        val tmp = File(context.filesDir, "$MODEL_FILE.part")
-        context.assets.open(MODEL_ASSET).use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        val tmp = File(context.filesDir, "${model.file}.part")
+        context.assets.open(model.asset).use { input -> tmp.outputStream().use { input.copyTo(it) } }
         if (!tmp.renameTo(target)) throw IllegalStateException("Failed to move model file")
         return target
     }
@@ -130,7 +141,6 @@ object KataGoFiles {
             numEigenThreadsPerModel = $threads
             nnCacheSizePowerOfTwo = 18
             nnMutexPoolSizePowerOfTwo = 14
-            defaultBoardSize = 9
         """.trimIndent()
         val file = File(context.filesDir, CONFIG_NAME)
         file.writeText(text + "\n")

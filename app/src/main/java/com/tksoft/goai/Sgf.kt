@@ -1,34 +1,26 @@
 package com.tksoft.goai
 
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 /** 棋譜を SGF (囲碁の標準的な棋譜形式) にする。分岐 (読み筋の分岐は除く) は SGF の変化図として書く */
 object Sgf {
     private fun coord(x: Int, y: Int) = "${'a' + x}${'a' + y}"
 
-    fun write(root: GoNode, settings: GameSettings): String {
+    private fun escape(s: String) = s.replace("\\", "\\\\").replace("]", "\\]")
+
+    fun write(r: KifuRecord): String {
+        val root = r.root
         val game = root.game
-        val ai = "KataGo"
-        val (pb, pw) = if (settings.humanColor == Stone.BLACK) "You" to ai else ai to "You"
-        val rules = if (settings.rules == Rules.JAPANESE) "Japanese" else "Chinese"
-        val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val rules = if (r.rules == Rules.JAPANESE) "Japanese" else "Chinese"
         val sb = StringBuilder()
         sb.append("(;GM[1]FF[4]CA[UTF-8]AP[GoAI]SZ[${game.size}]")
-        sb.append("KM[${settings.komi}]RU[$rules]DT[$date]PB[$pb]PW[$pw]")
+        sb.append("KM[${r.komi}]RU[$rules]")
+        r.gameDate?.let { sb.append("DT[${escape(it)}]") }
+        if (r.blackName.isNotEmpty()) sb.append("PB[${escape(r.blackName)}]")
+        if (r.whiteName.isNotEmpty()) sb.append("PW[${escape(r.whiteName)}]")
         if (game.handicapStones.isNotEmpty()) {
             sb.append("HA[${game.handicapStones.size}]AB")
             game.handicapStones.forEach { (x, y) -> sb.append("[${coord(x, y)}]") }
         }
-        // 本譜 (最初の子を辿った先) の結果を RE にする
-        var n: GoNode? = root
-        var mainResult: String? = null
-        while (n != null) {
-            n.result?.let { mainResult = it.code }
-            n = n.children.firstOrNull { !it.isPvBranch }
-        }
-        mainResult?.let { sb.append("RE[$it]") }
+        KifuHistoryManager.mainLineResult(root).takeIf { it.isNotEmpty() }?.let { sb.append("RE[$it]") }
         writeChildren(root, sb)
         sb.append(")\n")
         return sb.toString()

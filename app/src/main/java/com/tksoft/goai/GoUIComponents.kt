@@ -110,7 +110,7 @@ fun PlayerStatusSection(name: String, stone: Stone, captures: Int, isActive: Boo
         }
         Text(
             text = stringResource(R.string.captures_one, captures),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
