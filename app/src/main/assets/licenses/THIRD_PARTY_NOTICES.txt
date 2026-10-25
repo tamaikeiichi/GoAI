@@ -16,6 +16,7 @@ GoAI includes the following third party software and data.
   JSON for Modern C++ 3.8.0        MIT           JSON (KataGo)
   sha2.cpp (Aaron D. Gifford)      BSD-3-Clause  SHA-2 hashing (KataGo)
   AndroidX / Jetpack Compose       Apache 2.0    User interface
+  Material Symbols / Icons         Apache 2.0    Button and menu icons
 
 Eigen source code (MPL 2.0) is available at https://gitlab.com/libeigen/eigen
 and the copy used by GoAI is in app/src/main/cpp/eigen of

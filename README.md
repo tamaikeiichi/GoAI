@@ -49,7 +49,7 @@ GoAI 自体は [MIT License](LICENSE) です。同梱しているサードパー
 | Eigen 3.4.0 | MPL 2.0 |
 | TCLAP, ghc::filesystem, half, nlohmann/json | MIT |
 | sha2.cpp (Aaron D. Gifford) | BSD-3-Clause |
-| AndroidX / Jetpack Compose | Apache 2.0 |
+| AndroidX / Jetpack Compose, Material Symbols | Apache 2.0 |
 
 ## Privacy
 [privacyPolicy.txt](privacyPolicy.txt)
