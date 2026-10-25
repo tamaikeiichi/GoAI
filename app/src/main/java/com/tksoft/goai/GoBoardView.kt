@@ -29,8 +29,13 @@ val woodBoardColor = Color(0xFFDCB35C)
 private val lineColor = Color(0xFF3A2A10)
 /** 座標の文字色 (OGS の木目の盤と同じ) */
 private val labelColor = Color(0xFF444444)
-/** 盤の端から最初の線までのマス数: 座標欄 1 マス + 半マス (OGS と同じ) */
-private const val MARGIN = 1.5f
+/**
+ * 盤の端から最初の線までのマス数。石を少しでも大きくするため、座標欄は OGS (1 マス + 半マス) より狭くし、
+ * 端の石 (半径 0.48 マス) のすぐ外に座標の文字が収まる幅にする
+ */
+private const val MARGIN = 1.1f
+/** 盤の端から座標の文字の中心までのマス数 */
+private const val LABEL_POS = 0.32f
 private const val COLUMN_LABELS = "ABCDEFGHJKLMNOPQRST"
 /** 碁盤の目の縦横比。実物の碁盤 (目の幅 約 22mm, 高さ 約 23.7mm) と同じく少し縦長にする */
 const val BOARD_CELL_ASPECT = 1.07f
@@ -80,7 +85,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
 
 /**
  * 碁盤。将棋盤と違い、石はマスの中ではなく線の交点に置く。
- * 座標は OGS (online-go.com) と同じく盤の外側に1マス分の欄を設けて書く。上下に数字 (左から 1〜)、
+ * 座標は OGS (online-go.com) と同じく盤の外側の欄 (MARGIN) に書く。上下に数字 (左から 1〜)、
  * 左右にアルファベット (上から A〜、I は使わない) を太字で書く。左上が 1A
  * 目は実物の碁盤と同じく少し縦長 (BOARD_CELL_ASPECT) で、石は正円
  *
@@ -102,7 +107,7 @@ fun GoBoardView(
     ghostColor: Stone? = null,
 ) {
     val size = game.size
-    // 交点の数 + 両側の余白 (座標欄 1 マス + 半マスずつ)
+    // 交点の数 + 両側の余白 (座標欄)
     val cells = size - 1 + 2 * MARGIN
     // ドラッグで打つときの半透明の石の位置
     var ghost by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -255,17 +260,17 @@ private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float) {
 /** 盤の外側の座標。GTP や読み筋カードと同じ表記 (列は I を飛ばした A〜, 行は下から 1〜) */
 private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float) {
     val ts = cell * 0.36f
-    // 座標欄 (外側の1マス) の真ん中に書く
-    val far = size - 1 + 2 * MARGIN - 0.5f
+    // 座標欄 (盤の端と、端の石の間) に書く
+    val far = size - 1 + 2 * MARGIN - LABEL_POS
     for (i in 0 until size) {
         val px = cell * (i + MARGIN)
         val py = cellH * (i + MARGIN)
         // 左上を 1A にする (新聞の棋譜と同じく上辺に数字、左辺に記号)。GTP の座標 (列が記号、行は下から) とは違う
         val col = (i + 1).toString()
         val row = COLUMN_LABELS[i].toString()
-        drawLabel(col, Offset(px, cellH * 0.5f), ts, labelColor)
+        drawLabel(col, Offset(px, cellH * LABEL_POS), ts, labelColor)
         drawLabel(col, Offset(px, cellH * far), ts, labelColor)
-        drawLabel(row, Offset(cell * 0.5f, py), ts, labelColor)
+        drawLabel(row, Offset(cell * LABEL_POS, py), ts, labelColor)
         drawLabel(row, Offset(cell * far, py), ts, labelColor)
     }
 }

@@ -448,13 +448,16 @@ private fun KifuTreeView(
         }
 
         // 形勢棒グラフ（解析済みの全ての手）: 各手の位置を中心に上下へ伸ばす。
-        // 囲碁は黒の勝率で描く (上が黒有利・下が白有利、50% が中心、0% / 100% で振り切れ)
+        // 囲碁は黒の勝率で描く (上が黒有利・下が白有利、50% が中心、0% / 100% で振り切れ)。
+        // 囲碁の勝率は将棋の評価値ほど振れず 50% 近くにとどまることが多いので、50% からの差の平方根を棒の長さにして、
+        // 小さな差も見えるようにする (60% で半分弱、75% で 7 割)
         val barWidth = colPx.coerceAtLeast(2f)
         for (i in layout.nodes.indices) {
             val winrate = layout.nodes[i].winrateBlack ?: continue
             val c = pos(i)
             if (c.x < left || c.x > right) continue
-            val normalized = ((winrate - 0.5) * 2).toFloat().coerceIn(-1f, 1f)
+            val diff = ((winrate - 0.5) * 2).toFloat().coerceIn(-1f, 1f)
+            val normalized = kotlin.math.sign(diff) * kotlin.math.sqrt(kotlin.math.abs(diff))
             val barColor = if (normalized >= 0) blackBarColor else whiteBarColor
             drawLine(barColor, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
         }
