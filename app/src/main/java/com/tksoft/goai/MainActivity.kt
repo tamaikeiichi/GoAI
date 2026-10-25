@@ -237,8 +237,9 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             if (isWide) {
                 Row(
                     modifier = Modifier.fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding() + 16.dp, start = 16.dp, end = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        // 盤を少しでも大きくするため、画面の端との余白は狭くする
+                        .padding(top = innerPadding.calculateTopPadding() + 8.dp, start = 8.dp, end = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Column(
                         modifier = Modifier.weight(0.5f).verticalScroll(rememberScrollState()),
@@ -259,7 +260,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                         .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    BoardArea(vm, Modifier.padding(16.dp)) { showMenu = true }
+                    // 盤を少しでも大きくするため、画面の端との余白は狭くする
+                    BoardArea(vm, Modifier.padding(horizontal = 6.dp, vertical = 8.dp)) { showMenu = true }
                     Column(modifier = Modifier.padding(8.dp)) { PvCards(vm) }
                     // bottomBar に隠れる分をスクロールで見られるようにする
                     Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))

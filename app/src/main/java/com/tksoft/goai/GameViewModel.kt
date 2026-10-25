@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,6 +34,8 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
 private const val ANALYSIS_MAX_VISITS = 3000
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
+/** 「この局面から全て解析」で、思考時間を過ぎても最初の結果が出ないときに待つ上限 [ms] */
+private const val FIRST_RESULT_TIMEOUT_MS = 10_000L
 
 data class GameSettings(
     val boardSize: Int = 9,
@@ -395,14 +399,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     analysisNode = node
                     analysis = null
                     analyzing = true
+                    val evaluated = CompletableDeferred<Unit>()
                     val search = launch {
                         gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 50 maxmoves $ANALYSIS_MAX_MOVES") { line ->
                             val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                             analysis = a
-                            a.best?.let { node.setEvaluation(it) }
+                            a.best?.let { node.setEvaluation(it); evaluated.complete(Unit) }
                         }
                     }
                     delay(settings.analysisTimeMs)
+                    // 思考時間が短いと、最初の結果が出る前に止めてしまい形勢が付かないので、最初の結果までは待つ
+                    withTimeoutOrNull(FIRST_RESULT_TIMEOUT_MS) { evaluated.await() }
                     gtp.stopAnalysis()
                     search.join()
                     node = node.continuationChild() ?: break
