@@ -37,7 +37,7 @@ data class GameSettings(
     val boardSize: Int = 9,
     val humanColor: Stone = Stone.BLACK,
     val rules: Rules = Rules.JAPANESE,
-    val komi: Double = Rules.JAPANESE.defaultKomi,
+    val komi: Double = 6.5,
     val handicap: Int = 0,
     /** 石の置き方: false = タップ, true = 指のやや上に出る半透明の石をドラッグして離す */
     val dragToPlace: Boolean = false,

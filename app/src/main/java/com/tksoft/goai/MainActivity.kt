@@ -836,18 +836,32 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                     valueRange = 0f..1f
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.komi), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0.5, 5.5, 6.5, 7.0, 7.5).forEach { k ->
-                        FilterChip(s.komi == k, { s = s.copy(komi = k) }, { Text("$k") })
-                    }
+                // コミ: 0〜10 目を 0.5 目刻みで選ぶ (思考時間と同じく、値を大きく出す)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(stringResource(R.string.komi), style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "%.1f".format(Locale.US, s.komi),
+                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
+                Slider(
+                    value = s.komi.toFloat().coerceIn(0f, MAX_KOMI),
+                    onValueChange = { s = s.copy(komi = Math.round(it * 2) / 2.0) },
+                    valueRange = 0f..MAX_KOMI,
+                    // 0.5 刻みの目盛りの数 (両端を除く)
+                    steps = (MAX_KOMI * 2).toInt() - 1,
+                )
             }
         },
         confirmButton = { TextButton(onClick = { onSave(s) }) { Text(stringResource(R.string.settings_save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }
+
+/** 設定で選べるコミの上限 (目) */
+private const val MAX_KOMI = 10f
 
 // 設定の思考時間（「この局面から全て解析」で1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
 // ShogiGUI と同じく対数目盛りで 0.05秒〜5秒
