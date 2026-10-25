@@ -865,10 +865,10 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
 /** 設定で選べるコミの上限 (目) */
 private const val MAX_KOMI = 10f
 
-// 設定の思考時間（「この局面から全て解析」で1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
-// ShogiGUI と同じく対数目盛りで 0.05秒〜5秒
-private const val minThinkTimeMs = 50L
-private const val maxThinkTimeMs = 5000L
+// 設定の思考時間（AI の1手と「この局面から全て解析」の1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
+// ShogiGUI と同じく対数目盛り。範囲は 0.2秒〜5秒 (MIN_THINK_TIME_MS)
+private const val minThinkTimeMs = MIN_THINK_TIME_MS
+private const val maxThinkTimeMs = MAX_THINK_TIME_MS
 private fun thinkTimeToSlider(ms: Long): Float {
     val t = ms.coerceIn(minThinkTimeMs, maxThinkTimeMs).toDouble()
     return (kotlin.math.ln(t / minThinkTimeMs) / kotlin.math.ln(maxThinkTimeMs.toDouble() / minThinkTimeMs)).toFloat()

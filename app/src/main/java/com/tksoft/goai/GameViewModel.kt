@@ -34,6 +34,13 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
 private const val ANALYSIS_MAX_VISITS = 3000
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
+/**
+ * 思考時間の下限 [ms]。19路 (b10 のネット) をエミュレータで測ると、最初の結果は約 0.1 秒で出るが探索数が 2〜3 で、
+ * 勝率が 2 秒考えたときと最大 5% ほど違った。0.2 秒 (探索数 6〜12) なら差は 2% 以内で形勢グラフに十分なので、これを下限にする
+ */
+const val MIN_THINK_TIME_MS = 200L
+/** 思考時間の上限 [ms] */
+const val MAX_THINK_TIME_MS = 5000L
 /** 「この局面から全て解析」で、思考時間を過ぎても最初の結果が出ないときに待つ上限 [ms] */
 private const val FIRST_RESULT_TIMEOUT_MS = 10_000L
 
@@ -401,14 +408,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     analyzing = true
                     val evaluated = CompletableDeferred<Unit>()
                     val search = launch {
-                        gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 50 maxmoves $ANALYSIS_MAX_MOVES") { line ->
+                        // interval の単位はセンチ秒。思考時間が短くても結果を取れるよう、0.05 秒ごとに報告させる
+                        gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 5 maxmoves $ANALYSIS_MAX_MOVES") { line ->
                             val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                             analysis = a
                             a.best?.let { node.setEvaluation(it); evaluated.complete(Unit) }
                         }
                     }
                     delay(settings.analysisTimeMs)
-                    // 思考時間が短いと、最初の結果が出る前に止めてしまい形勢が付かないので、最初の結果までは待つ
+                    // 端末が遅いなどで思考時間内に最初の結果が出なくても、形勢を付けてから次の手へ進むよう、最初の結果までは待つ
                     withTimeoutOrNull(FIRST_RESULT_TIMEOUT_MS) { evaluated.await() }
                     gtp.stopAnalysis()
                     search.join()
@@ -715,7 +723,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             komi = prefs.getFloat("komi", d.komi.toFloat()).toDouble(),
             handicap = prefs.getInt("handicap", d.handicap),
             dragToPlace = prefs.getBoolean("dragToPlace", d.dragToPlace),
-            analysisTimeMs = prefs.getLong("analysisTimeMs", d.analysisTimeMs),
+            // 下限を上げる前の版で保存した短い思考時間 (0.05 秒など) は下限に合わせる
+            analysisTimeMs = prefs.getLong("analysisTimeMs", d.analysisTimeMs).coerceIn(MIN_THINK_TIME_MS, MAX_THINK_TIME_MS),
         )
     }
 
