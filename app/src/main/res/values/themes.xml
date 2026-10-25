@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      エッジ ツー エッジ表示はテーマで設定する（androidx の enableEdgeToEdge() は旧バージョン向けに
+      Window.setStatusBarColor 等の非推奨 API を呼ぶため、Play Console で警告されるので使わない）。
+      Android 7.0〜8.0 はナビゲーションバーのアイコンを暗色にできないので、半透明の暗色を敷く
+    -->
+    <style name="Theme.GoAI" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">#801B1B1B</item>
+    </style>
+</resources>

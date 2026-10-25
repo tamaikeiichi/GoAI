@@ -1,0 +1,23 @@
+Privacy Policy for GoAI
+Last Updated: October 25, 2026
+
+GoAI (hereinafter referred to as "the App") is an Android application developed by Keiichi Tamai (hereinafter referred to as "the Developer").
+
+1. Information Collection and Use
+The App does not collect, store, or transmit any personally identifiable information. The App does not use the Internet: the Go AI (KataGo) and its neural network run entirely on the User's device.
+
+Game Settings: The User's game settings (color, AI level, rules, komi, handicap) are stored locally on the device.
+
+Game Records (SGF): Game records are sent to other apps only when the User explicitly taps the share button.
+
+2. Permissions
+The App does not request any special permissions.
+
+3. Third-Party Services
+The App does not use advertising networks, analytics tools, or SDKs that track user behavior.
+
+4. Changes to This Privacy Policy
+The Developer may update this Privacy Policy from time to time. Changes are effective immediately after they are posted on this page or within the App.
+
+5. Contact Us
+If you have any questions about this Privacy Policy, please contact the Developer via the contact information provided on the Google Play Store listing.

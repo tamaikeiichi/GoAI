@@ -1,0 +1,18 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# KataGo のネットワーク (約98MB) はビルド時にダウンロードする (app/build.gradle.kts)
+/app/src/main/assets/katago_model_9x9.bin.gz.dat
+/app/src/main/assets/*.part

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 10 以降: ステータスバーには自動の半透明背景を付けない（ナビゲーションバーは3ボタン時のみ自動で付く） -->
+    <style name="Theme.GoAI" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>
