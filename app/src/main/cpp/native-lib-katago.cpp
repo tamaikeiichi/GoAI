@@ -110,6 +110,12 @@ private:
 // shared_ptr で管理: nativeSendCommand がローカルコピーを保持している間は
 // nativeStart が終了してもオブジェクトが破壊されない
 static std::shared_ptr<KataCinBuf> g_cin_buf;
+// g_cin_buf を読んでいるエンジン (KataGoEngine のインスタンス)
+static jobject g_cin_owner = nullptr;
+// まだ起動していない (前のエンジンの終了待ちの) エンジンに送られたコマンド。起動したら渡す。
+// 盤の大きさを変えてネットを切り替えるときは、前のエンジンの終了を待つ間に次のエンジンへコマンドが送られるので、
+// 送り先のエンジンで区別しないと、終わりかけの前のエンジンに渡って消えてしまう
+static std::vector<std::pair<jobject, std::string>>& g_pending = *new std::vector<std::pair<jobject, std::string>>();
 static std::mutex& g_cin_mutex = *new std::mutex();
 
 // nativeStart の多重起動を防ぐ。nativeStop は "quit" を投入するだけで終了を待たないため、
@@ -148,6 +154,13 @@ Java_com_tksoft_goai_KataGoEngine_nativeStart(JNIEnv* env, jobject thiz, jstring
     {
         std::lock_guard<std::mutex> lock(g_cin_mutex);
         g_cin_buf = cin_buf;
+        g_cin_owner = env->NewGlobalRef(thiz);
+        // 起動前にこのエンジンへ送られていたコマンドを渡す。ほかのエンジン宛ての残りは捨てる
+        for (auto& [owner, cmd] : g_pending) {
+            if (env->IsSameObject(owner, thiz)) cin_buf->push_line(cmd);
+            env->DeleteGlobalRef(owner);
+        }
+        g_pending.clear();
     }
     std::streambuf* old_cin = std::cin.rdbuf(cin_buf.get());
 
@@ -176,7 +189,11 @@ Java_com_tksoft_goai_KataGoEngine_nativeStart(JNIEnv* env, jobject thiz, jstring
 
     {
         std::lock_guard<std::mutex> lock(g_cin_mutex);
-        g_cin_buf.reset();
+        if (g_cin_buf == cin_buf) {
+            g_cin_buf.reset();
+            if (g_cin_owner) env->DeleteGlobalRef(g_cin_owner);
+            g_cin_owner = nullptr;
+        }
     }
     {
         std::lock_guard<std::mutex> lock(g_mutex);
@@ -198,7 +215,12 @@ Java_com_tksoft_goai_KataGoEngine_nativeSendCommand(JNIEnv* env, jobject thiz, j
     std::shared_ptr<KataCinBuf> buf;
     {
         std::lock_guard<std::mutex> lock(g_cin_mutex);
-        buf = g_cin_buf;
+        if (g_cin_buf && g_cin_owner && env->IsSameObject(thiz, g_cin_owner)) {
+            buf = g_cin_buf;
+        } else {
+            // このエンジンはまだ起動していない
+            g_pending.emplace_back(env->NewGlobalRef(thiz), cmd);
+        }
     }
     if (buf) buf->push_line(cmd);
 }
@@ -208,7 +230,16 @@ Java_com_tksoft_goai_KataGoEngine_nativeStop(JNIEnv* env, jobject thiz) {
     std::shared_ptr<KataCinBuf> buf;
     {
         std::lock_guard<std::mutex> lock(g_cin_mutex);
-        buf = g_cin_buf;
+        if (g_cin_buf && g_cin_owner && env->IsSameObject(thiz, g_cin_owner)) {
+            // 以後のコマンドは次に起動するエンジンのものなので、このエンジンには渡さない
+            buf = g_cin_buf;
+            g_cin_buf.reset();
+            env->DeleteGlobalRef(g_cin_owner);
+            g_cin_owner = nullptr;
+        } else {
+            // 起動する前に止められたら、起動してすぐ終わるようにする
+            g_pending.emplace_back(env->NewGlobalRef(thiz), "quit");
+        }
     }
     if (buf) buf->push_line("quit");
 }
