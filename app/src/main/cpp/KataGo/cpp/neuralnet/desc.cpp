@@ -37,6 +37,55 @@ static float readFloatFast(istream& in, string& tmp) {
   return x;
 }
 
+//GoAI: reads floats stored as "@BLK@" blocks, single text floats (lines with one float), or one ordinary "@BIN@" array
+static void readBlockFloats(istream& in, size_t numFloats, const string& name, vector<float>& buf) {
+  size_t filled = 0;
+  while(filled < numFloats) {
+    int numCharsBeforeAt = 0;
+    while(isspace(in.peek())) {
+      in.get();
+      numCharsBeforeAt++;
+      if(numCharsBeforeAt > 100 || in.fail())
+        throw StringError(name + ": could not read float weights");
+    }
+    if(in.peek() != '@') {
+      //A line holding a single float stays as text
+      string tmp;
+      float x = readFloatFast(in,tmp);
+      if(in.fail())
+        throw StringError(name + ": could not read float weights");
+      buf[filled++] = x;
+      continue;
+    }
+    char header[5];
+    in.read(header, 5);
+    if(in.fail())
+      throw StringError(name + ": did not find expected header for binary float block");
+    if(filled == 0 && string(header, 5) == "@BIN@") {
+      //Ordinary .bin.gz array (the stream cannot be rewound, so read it here)
+      in.read((char*)buf.data(), numFloats * sizeof(float));
+      if(in.fail())
+        throw StringError(name + ": did not find the expected number of floats in binary float block");
+      filled = numFloats;
+      break;
+    }
+    if(string(header, 5) != "@BLK@")
+      throw StringError(name + ": did not find expected header for binary float block");
+    unsigned char countBytes[4];
+    in.read((char*)countBytes, 4);
+    size_t count = (size_t)countBytes[0] | ((size_t)countBytes[1] << 8) | ((size_t)countBytes[2] << 16) | ((size_t)countBytes[3] << 24);
+    if(in.fail() || filled + count > numFloats)
+      throw StringError(name + ": float block has too many floats");
+    in.read((char*)(buf.data() + filled), count * sizeof(float));
+    if(in.fail())
+      throw StringError(name + ": float block is truncated");
+    filled += count;
+  }
+  for(size_t i = 0; i<numFloats; i++) {
+    CHECKFINITE(buf[i],name);
+  }
+}
+
 static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const string& name, vector<float>& buf) {
   buf.resize(numFloats);
   if(!binaryFloats) {
@@ -52,40 +101,9 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
   else {
     //KataGo hacky model format - "@BIN@" followed by the expected number of 32 bit floats, in little-endian binary
     testAssert(sizeof(float) == 4);
-    {
-      string s;
-      int numCharsBeforeAt = 0;
-      while((char)in.get() != '@') {
-        numCharsBeforeAt++;
-        //Something is wrong, there should not be this much whitespace
-        if(numCharsBeforeAt > 100 || in.fail()) {
-          throw StringError(name + ": could not read float weights. Invalid model - perhaps you are trying to load a .txt.gz model as a .bin.gz model?");
-        }
-      }
-      s += (char)in.get();
-      s += (char)in.get();
-      s += (char)in.get();
-      s += (char)in.get();
-      if(s != "BIN@")
-        throw StringError(name + ": did not find expected header for binary float block");
-    }
-    float* data = buf.data();
-    char* bytes = (char*)data;
-    in.read(bytes, numFloats*sizeof(float));
-
-    if(in.fail())
-      throw StringError(name + ": did not find the expected number of floats in binary float block");
-
-#if BYTE_ORDER == BIG_ENDIAN
-    for(size_t i = 0; i<numFloats; i++) {
-      //Reverse byte order for big endian
-      std::swap(bytes[i*4 + 0], bytes[i*4 + 3]);
-      std::swap(bytes[i*4 + 1], bytes[i*4 + 2]);
-    }
-#endif
-    for(size_t i = 0; i<numFloats; i++) {
-      CHECKFINITE(buf[i],name);
-    }
+    //GoAI: also accept "@BLK@" blocks, each followed by a little-endian uint32 count and that many floats.
+    //One block per line of a .txt.gz model, so an array may span several blocks (see app/build.gradle.kts).
+    readBlockFloats(in, numFloats, name, buf);
   }
 }
 

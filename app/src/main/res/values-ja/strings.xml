@@ -14,7 +14,6 @@
     <string name="result_draw">持碁</string>
     <string name="result_resign">%1$sの中押し勝ち</string>
     <string name="result_points">%1$sの %2$s 目勝ち</string>
-    <string name="level">AI の強さ</string>
     <string name="rules">ルール</string>
     <string name="rules_japanese">日本ルール</string>
     <string name="rules_chinese">中国ルール</string>
@@ -36,7 +35,7 @@
     <string name="action_stop">停止</string>
     <string name="action_preparing">準備中</string>
     <string name="you">あなた</string>
-    <string name="ai_name">KataGo Lv%1$d</string>
+    <string name="ai_name">KataGo</string>
     <string name="menu_reset">リセット</string>
     <string name="menu_delete_branches">分岐を削除</string>
     <string name="menu_settings">設定</string>
@@ -71,6 +70,6 @@
     <string name="placement_tap">タップ</string>
     <string name="placement_drag">ドラッグ（指の上に石を表示）</string>
     <string name="action_analyze_all">この局面から全て解析</string>
-    <string name="settings_think_time_label">全て解析の思考時間</string>
+    <string name="settings_think_time_label">思考時間（AIの手・全て解析）</string>
     <string name="settings_think_time_unit">秒</string>
 </resources>

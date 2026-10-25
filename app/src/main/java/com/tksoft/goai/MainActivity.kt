@@ -791,13 +791,6 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                     FilterChip(s.dragToPlace, { s = s.copy(dragToPlace = true) }, { Text(stringResource(R.string.placement_drag)) })
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.level), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Level.entries.forEachIndexed { i, lv ->
-                        FilterChip(s.level == lv, { s = s.copy(level = lv) }, { Text("${i + 1}") })
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.rules), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Rules.entries.forEach { r ->
@@ -817,7 +810,7 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // 「この局面から全て解析」で1手あたりに使う時間（単発の解析は停止するまで考え続ける）。
+                // AI が1手に使う時間と、「この局面から全て解析」で1手あたりに使う時間（単発の解析は停止するまで考え続ける）。
                 // 短い時間ほど細かく選べるよう、スライダーは対数目盛り（倍になるごとに同じ距離）で連続的に動かし、
                 // 値は0.01秒単位に丸める。つまみは丸めた値ではなく指の位置をそのまま追うので、滑らかに動く
                 var thinkSliderPos by remember { mutableFloatStateOf(thinkTimeToSlider(s.analysisTimeMs)) }

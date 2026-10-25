@@ -15,7 +15,6 @@
     <string name="result_draw">Draw (jigo)</string>
     <string name="result_resign">%1$s wins by resignation</string>
     <string name="result_points">%1$s wins by %2$s</string>
-    <string name="level">AI level</string>
     <string name="rules">Rules</string>
     <string name="rules_japanese">Japanese</string>
     <string name="rules_chinese">Chinese</string>
@@ -37,7 +36,7 @@
     <string name="action_stop">Stop</string>
     <string name="action_preparing">Preparing</string>
     <string name="you">You</string>
-    <string name="ai_name">KataGo Lv%1$d</string>
+    <string name="ai_name">KataGo</string>
     <string name="menu_reset">Reset</string>
     <string name="menu_delete_branches">Delete branches</string>
     <string name="menu_settings">Settings</string>
@@ -72,6 +71,6 @@
     <string name="placement_tap">Tap</string>
     <string name="placement_drag">Drag (stone shown above your finger)</string>
     <string name="action_analyze_all">Analyze all from here</string>
-    <string name="settings_think_time_label">Think time (analyze all)</string>
+    <string name="settings_think_time_label">Think time (AI moves, analyze all)</string>
     <string name="settings_think_time_unit">s</string>
 </resources>

@@ -28,20 +28,6 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
     CHINESE("chinese", 7.0),
 }
 
-/**
- * AI の強さ。KataGo は 1 visit (読みなし) でもかなり強いので、弱いレベルは
- * 探索数を減らすだけでなく chosenMoveTemperature を上げて、ときどき最善でない手を選ばせる。
- * CPU (Eigen) で b18c384 のネットを動かすと 1 秒あたり数十 visit 程度なので、最大でも 256 visit にしている
- */
-enum class Level(val maxVisits: Int, val temperature: Double) {
-    LV1(8, 1.5),
-    LV2(16, 0.8),
-    LV3(32, 0.4),
-    LV4(64, 0.1),
-    LV5(128, 0.0),
-    LV6(256, 0.0),
-}
-
 /** 解析は候補手の探索数の合計がこれを超えたら自動で止める (電池の消耗を抑える) */
 private const val ANALYSIS_MAX_VISITS = 3000
 /** 読み筋カードに出す候補手の数 */
@@ -53,10 +39,12 @@ data class GameSettings(
     val rules: Rules = Rules.JAPANESE,
     val komi: Double = Rules.JAPANESE.defaultKomi,
     val handicap: Int = 0,
-    val level: Level = Level.LV3,
     /** 石の置き方: false = タップ, true = 指のやや上に出る半透明の石をドラッグして離す */
     val dragToPlace: Boolean = false,
-    /** 「この局面から全て解析」で1手あたりに使う時間 [ms] */
+    /**
+     * 思考時間 [ms]: AI が1手に使う時間と、「この局面から全て解析」で1手あたりに使う時間。
+     * このアプリは解析が主なので AI の強さは選ばせず、常に最善手を打たせて、強さは思考時間だけで変える
+     */
     val analysisTimeMs: Long = 1000L,
 )
 
@@ -200,7 +188,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         get() = engineStatus == EngineStatus.Ready && !thinking &&
             (humanColor == null || (result == null && game.toPlay == humanColor))
 
-    /** 表示中の棋譜の盤の大きさに合わせてエンジンを用意し、ルール・コミ・強さを送る */
+    /** 表示中の棋譜の盤の大きさに合わせてエンジンを用意し、ルール・コミ・思考時間を送る */
     private suspend fun configureEngine() = engineMutex.withLock {
         val s = settings
         val size = game.size
@@ -209,13 +197,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         gtp.send("boardsize $size")
         gtp.send("kata-set-rules ${s.rules.gtp}")
         gtp.send("komi ${s.komi}")
-        gtp.send("kata-set-param maxVisits ${s.level.maxVisits}")
-        gtp.send("kata-set-param chosenMoveTemperature ${s.level.temperature}")
-        gtp.send("kata-set-param chosenMoveTemperatureEarly ${s.level.temperature.coerceAtLeast(0.5)}")
+        // AI の手は思考時間だけで止める (探索数では止めない)。いつも最善手を選ぶ
+        gtp.send("kata-set-param maxVisits 1000000")
+        gtp.send("kata-set-param maxTime ${s.analysisTimeMs / 1000.0}")
+        gtp.send("kata-set-param chosenMoveTemperature 0")
+        gtp.send("kata-set-param chosenMoveTemperatureEarly 0")
         gtp.send("clear_cache")
     }
 
-    /** 設定 (盤の大きさ・強さ・ルール・コミ・置石) を保存してエンジンに送る。盤の大きさを変えたらリセットする */
+    /** 設定 (盤の大きさ・思考時間・ルール・コミ・置石) を保存してエンジンに送る。盤の大きさを変えたらリセットする */
     fun applySettings(newSettings: GameSettings) {
         val sizeChanged = newSettings.boardSize != game.size
         settings = newSettings.copy(humanColor = settings.humanColor)
@@ -283,7 +273,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         unpin()
         humanColor = color
         settings = settings.copy(humanColor = color).also { saveSettings(it) }
-        val ai = str(R.string.ai_name, settings.level.ordinal + 1)
+        val ai = str(R.string.ai_name)
         if (color == Stone.BLACK) { blackName = str(R.string.you); whiteName = ai }
         else { blackName = ai; whiteName = str(R.string.you) }
         if (gameDate == null) gameDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
@@ -717,7 +707,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             rules = runCatching { Rules.valueOf(prefs.getString("rules", d.rules.name)!!) }.getOrDefault(d.rules),
             komi = prefs.getFloat("komi", d.komi.toFloat()).toDouble(),
             handicap = prefs.getInt("handicap", d.handicap),
-            level = runCatching { Level.valueOf(prefs.getString("level", d.level.name)!!) }.getOrDefault(d.level),
             dragToPlace = prefs.getBoolean("dragToPlace", d.dragToPlace),
             analysisTimeMs = prefs.getLong("analysisTimeMs", d.analysisTimeMs),
         )
@@ -730,7 +719,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .putString("rules", s.rules.name)
             .putFloat("komi", s.komi.toFloat())
             .putInt("handicap", s.handicap)
-            .putString("level", s.level.name)
             .putBoolean("dragToPlace", s.dragToPlace)
             .putLong("analysisTimeMs", s.analysisTimeMs)
             .apply()

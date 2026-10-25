@@ -1,4 +1,8 @@
 import java.net.URI
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 plugins {
     alias(libs.plugins.android.application)
@@ -65,21 +69,52 @@ android {
 //   (KataGo Neural Network License, MIT 相当) https://katagotraining.org/extra_networks/
 // - g170e-b10c128-s1141046784-d204142634 (約14MB): 13路・19路用の小さな公式ネット (g170 系は CC0)
 //   https://github.com/lightvector/KataGo/releases/tag/v1.3
+//   テキスト形式 (.txt.gz) しかなく、端末での読み込み (数値の文字列の解析) に数秒かかるので、
+//   ビルド時にバイナリ形式に変換する (convertTextModel)
+// 値: assets のファイル名と、テキスト形式から変換するかどうか
 val katagoModels = mapOf(
     "https://media.katagotraining.org/uploaded/networks/models_extra/kata9x9-b18c384nbt-20231025.bin.gz"
-        to "katago_model_9x9.bin.gz.dat",
+        to ("katago_model_9x9.bin.gz.dat" to false),
     "https://github.com/lightvector/KataGo/releases/download/v1.3/g170e-b10c128-s1141046784-d204142634.txt.gz"
-        to "katago_model_b10.txt.gz.dat",
+        to ("katago_model_b10.bin.gz.dat" to true),
 )
 val assetsDir = layout.projectDirectory.dir("src/main/assets")
 
 val downloadKataGoModel = tasks.register("downloadKataGoModel") {
     description = "Downloads the KataGo networks into assets if they are missing"
-    val targets = katagoModels.map { (url, name) -> url to assetsDir.file(name).asFile }
+    val targets = katagoModels.map { (url, v) -> Triple(url, assetsDir.file(v.first).asFile, v.second) }
     outputs.files(targets.map { it.second })
     onlyIf { targets.any { !it.second.exists() } }
     doLast {
-        for ((url, target) in targets) {
+        // (configuration cache のため、スクリプトの関数ではなくタスクの中に置く)
+        /**
+         * テキスト形式のネット (.txt.gz) をバイナリ形式 (.bin.gz) にする。
+         * 見出しや層の大きさの行はそのまま残し、数値が2つ以上並んだ行 (重み) を
+         * "@BLK@" + 個数 (uint32) + float32 の並び (どちらもリトルエンディアン) に置き換える。
+         * 1つの配列が複数の行にまたがるので、KataGo 標準の "@BIN@" (配列ごと) ではなく行ごとの "@BLK@" にし、
+         * 読み込み側 (neuralnet/desc.cpp の readBlockFloats) で行をつなげて配列にする
+         */
+        fun convertTextModel(src: File, dst: File) {
+            GZIPInputStream(src.inputStream().buffered()).bufferedReader().use { reader ->
+                GZIPOutputStream(dst.outputStream().buffered()).use { out ->
+                    reader.forEachLine { line ->
+                        val tokens = line.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+                        if (tokens.size < 2) {
+                            out.write((line + "\n").toByteArray())
+                        } else {
+                            val buf = ByteBuffer.allocate(9 + tokens.size * 4).order(ByteOrder.LITTLE_ENDIAN)
+                            buf.put("@BLK@".toByteArray())
+                            buf.putInt(tokens.size)
+                            for (t in tokens) buf.putFloat(t.toFloat())
+                            out.write(buf.array())
+                            out.write('\n'.code)
+                        }
+                    }
+                }
+            }
+        }
+
+        for ((url, target, fromText) in targets) {
             if (target.exists()) continue
             target.parentFile.mkdirs()
             val tmp = File(target.parentFile, target.name + ".part")
@@ -87,7 +122,13 @@ val downloadKataGoModel = tasks.register("downloadKataGoModel") {
             URI(url).toURL().openStream().use { input ->
                 tmp.outputStream().use { output -> input.copyTo(output) }
             }
-            if (!tmp.renameTo(target)) error("Failed to move $tmp to $target")
+            if (fromText) {
+                val converted = File(target.parentFile, target.name + ".bin.part")
+                logger.lifecycle("Converting $url to the binary format")
+                convertTextModel(tmp, converted)
+                tmp.delete()
+                if (!converted.renameTo(target)) error("Failed to move $converted to $target")
+            } else if (!tmp.renameTo(target)) error("Failed to move $tmp to $target")
         }
     }
 }

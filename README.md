@@ -18,8 +18,8 @@ A free, open source Go app for Android (9x9, 13x13, 19x19). The AI is
 - 形勢グラフ付きの樹形図 (分岐)。本譜ボタンで本譜に戻る
 - 過去の棋譜: 着手のたびに自動保存。検索・削除 (24時間はゴミ箱から戻せる)。
   SGF を ZIP にまとめてエクスポート / インポート。クリップボードの SGF の読み込み、SGF の共有・コピー
-- 設定: 盤の大きさ、石の置き方 (タップ / 指の上に半透明の石を出してドラッグ)、AI の強さ 6 段階、
-  日本ルール / 中国ルール、置石、コミ、全て解析の思考時間
+- 設定: 盤の大きさ、石の置き方 (タップ / 指の上に半透明の石を出してドラッグ)、
+  日本ルール / 中国ルール、置石、コミ、思考時間 (AI は常に最善手を打ち、強さは思考時間で変わる。全て解析の1手あたりの時間も兼ねる)
 - 終局時は KataGo が死活を判定し、死に石と地を表示
 - 碁盤は実物と同じく少し縦長。座標は盤の外の欄に、上辺が数字・左辺がアルファベット (左上が 1A)
 - 折りたたみスマホを広げたとき・タブレットを横長にしたとき (幅 840dp 以上) は、盤と読み筋カードを左右に並べる
@@ -30,7 +30,9 @@ Android Studio で開いてビルドするだけです。
 - KataGo のネットワークはリポジトリに含めず、ビルド時に `downloadKataGoModel` タスクが
   `app/src/main/assets/` にダウンロードします。
   - 9路盤: `kata9x9-b18c384nbt-20231025` (約 98MB, [katagotraining.org](https://katagotraining.org/extra_networks/))
-  - 13路・19路: `g170e-b10c128-s1141046784-d204142634` (約 14MB, [KataGo v1.3](https://github.com/lightvector/KataGo/releases/tag/v1.3))
+  - 13路・19路: `g170e-b10c128-s1141046784-d204142634` (約 14MB, [KataGo v1.3](https://github.com/lightvector/KataGo/releases/tag/v1.3))。
+    配布はテキスト形式だけで端末での読み込みが遅いので、ダウンロード後にバイナリ形式に変換する
+    (KataGo の `neuralnet/desc.cpp` に変換後の形式を読む `readBlockFloats` を追加している)
 - NDK (CMake 3.22.1) で `app/src/main/cpp` の KataGo をビルドします (arm64-v8a, x86_64)。
 
 ## 構成

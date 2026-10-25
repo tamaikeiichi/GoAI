@@ -106,8 +106,9 @@ fun GoBoardView(
     val cells = size - 1 + 2 * MARGIN
     // ドラッグで打つときの半透明の石の位置
     var ghost by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    // 半透明の石を指からどれだけ上に出すか (指先に隠れない程度)
-    val liftPx = with(LocalDensity.current) { 44.dp.toPx() }
+    // 半透明の石を指からどれだけ上に出すか。触れた点は指の腹の中心なので、指先 (触れた点の 5mm ほど上まで) に
+    // 隠れないよう 1cm ほど上に出す
+    val liftPx = with(LocalDensity.current) { 64.dp.toPx() }
     Canvas(
         modifier = modifier
             .aspectRatio(1f / BOARD_CELL_ASPECT)
@@ -208,22 +209,23 @@ fun GoBoardView(
             }
         }
 
-        // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する
-        val g = ghost
-        if (g != null && ghostColor != null && board[g.first, g.second] == Stone.EMPTY) {
-            val c = center(g.first, g.second)
-            val guide = lineColor.copy(alpha = 0.5f)
-            drawLine(guide, Offset(cell * MARGIN, c.y), Offset(cell * (size - 1 + MARGIN), c.y), strokeWidth = cell * 0.06f)
-            drawLine(guide, Offset(c.x, cellH * MARGIN), Offset(c.x, cellH * (size - 1 + MARGIN)), strokeWidth = cell * 0.06f)
-            drawStone(c, cell, ghostColor, alpha = 0.55f)
-        }
-
         // 解析中の候補手: 読み筋カードと同じ色の丸と順位
         candidates.forEach { cand ->
             val c = center(cand.move.x, cand.move.y)
             drawCircle(cand.color, radius = cell * 0.42f, center = c)
             drawCircle(lineColor.copy(alpha = 0.5f), radius = cell * 0.42f, center = c, style = Stroke(cell * 0.02f))
             drawLabel(cand.label, c, cell * 0.45f, Color(0xFF1B1B1B))
+        }
+
+        // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する。
+        // 解析中の候補手の丸に隠れないよう、いちばん最後に描く
+        val g = ghost
+        if (g != null && ghostColor != null && board[g.first, g.second] == Stone.EMPTY) {
+            val c = center(g.first, g.second)
+            val guide = lineColor.copy(alpha = 0.6f)
+            drawLine(guide, Offset(cell * MARGIN, c.y), Offset(cell * (size - 1 + MARGIN), c.y), strokeWidth = cell * 0.08f)
+            drawLine(guide, Offset(c.x, cellH * MARGIN), Offset(c.x, cellH * (size - 1 + MARGIN)), strokeWidth = cell * 0.08f)
+            drawStone(c, cell, ghostColor, alpha = 0.6f)
         }
     }
 }

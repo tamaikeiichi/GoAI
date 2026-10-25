@@ -94,7 +94,7 @@ class KataGoEngine {
  */
 enum class KataGoModel(val asset: String, val file: String, val displayName: String) {
     NET_9X9("katago_model_9x9.bin.gz.dat", "katago_model_9x9.bin.gz", "kata9x9-b18c384nbt"),
-    NET_GENERAL("katago_model_b10.txt.gz.dat", "katago_model_b10.txt.gz", "g170e-b10c128");
+    NET_GENERAL("katago_model_b10.bin.gz.dat", "katago_model_b10.bin.gz", "g170e-b10c128");
 
     companion object {
         fun forBoardSize(size: Int) = if (size == 9) NET_9X9 else NET_GENERAL
@@ -107,6 +107,8 @@ object KataGoFiles {
     /** assets のモデルを filesDir にコピーする (サイズが同じならコピー済みとみなす)。IO スレッドで呼ぶこと */
     fun prepareModel(context: Context, model: KataGoModel): File {
         val target = File(context.filesDir, model.file)
+        // 以前の版がコピーしたテキスト形式のネット (今はバイナリ形式に変換して入れている)
+        File(context.filesDir, "katago_model_b10.txt.gz").delete()
         val assetSize = context.assets.openFd(model.asset).use { it.length }
         if (target.exists() && target.length() == assetSize) return target
         val tmp = File(context.filesDir, "${model.file}.part")
