@@ -362,7 +362,6 @@ private fun KifuTreeView(
 
     // M3 Slider のデフォルト配色 (SliderDefaults.colors)
     val activeTrackColor = MaterialTheme.colorScheme.primary
-    val inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer
     val thumbColor = sliderThumbColor
     val containerBrush = Brush.verticalGradient(listOf(graphBackgroundTopColor, graphBackgroundBottomColor))
     // 現在の手順上で、現在の手までの手 (= Slider のアクティブ側)
@@ -415,7 +414,6 @@ private fun KifuTreeView(
         val left = -trackH * 2; val right = size.width + trackH * 2
         fun pos(i: Int) = Offset(offsetX + layout.col[i] * colPx, offsetY + layout.row[i] * rowPx)
         fun isActive(node: GoNode) = (pathIndex[node] ?: Int.MAX_VALUE) <= currentPathIdx
-        fun trackColor(node: GoNode) = if (isActive(node)) activeTrackColor else inactiveTrackColor
         val cursorIdx = layout.indexOf[currentNode]
         val cut = thumbW / 2 + thumbGap // つまみの左右はトラックを切り欠く
 
@@ -455,9 +453,8 @@ private fun KifuTreeView(
             }
         }
 
-        // トラック: 横線は引かず、各手の位置のドットだけにする。未到達側を先に、到達側を上に描く。
-        // 分岐して別の行へ下りるところだけ、どこから分かれたか分かるよう細い斜めの線で結ぶ。
-        // 棒グラフや目数の線に隠れないよう、それらより後 (つまみの下) に半透明で描く
+        // トラック: 横線もドットも描かない。分岐して別の行へ下りるところだけ、
+        // どこから分かれたか分かるよう細い斜めの線で結ぶ (棒グラフや目数の線より後、つまみの下)
         for (pass in 0..1) {
             val wantActive = pass == 1
             for (i in layout.nodes.indices) {
@@ -476,18 +473,6 @@ private fun KifuTreeView(
                 if (l <= 0f) continue
                 // 斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
                 drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
-            }
-            for (i in layout.nodes.indices) {
-                if (i == cursorIdx) continue
-                val node = layout.nodes[i]
-                // 根は子（最初の手）の色に合わせる
-                val colorNode = if (layout.parentIdx[i] < 0) node.continuationChild() ?: node.children.firstOrNull() ?: node else node
-                if (isActive(colorNode) != wantActive) continue
-                val c = pos(i)
-                if (c.x < left || c.x > right) continue
-                // つまみに重なるドットは描かない
-                val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
-                if (!nearThumb) drawCircle(trackColor(colorNode), radius = trackH / 2, center = c, alpha = TRACK_DOT_ALPHA)
             }
         }
 
@@ -512,9 +497,6 @@ private fun KifuTreeView(
         }
     }
 }
-
-// 形勢グラフのスライダーのドットの不透明度 (棒グラフの上に重ねるので半透明にする)
-private const val TRACK_DOT_ALPHA = 0.6f
 
 @Composable
 fun Modifier.repeatingClickable(enabled: Boolean = true, initialDelay: Long = 500L, delay: Long = 100L, onClick: () -> Unit): Modifier {
