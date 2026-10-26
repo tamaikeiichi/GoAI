@@ -9,11 +9,14 @@ val whiteBarColor = Color(0xFFF4F1DE)
 
 // 形勢グラフの背景: 上から下へのグラデーション
 val graphBackgroundTopColor = Color(0xFFF4F1DE)
-val graphBackgroundBottomColor = Color(0xFF0D0B0C)
+val graphBackgroundBottomColor = Color(0xFF24171A)
 
 // 形勢グラフのスライダーの、現在の手を示す縦棒 (つまみ) の色と、その外周の線の色
 val sliderThumbColor = Color(0xFF6D1020)
 val sliderThumbOutlineColor = Color(0xFFF4F1DE)
+// 形勢グラフのスライダーの、各手の位置を示すドットの塗りと外周の線の色
+val sliderDotColor = Color(0xFF24171A)
+val sliderDotOutlineColor = Color(0xFFF4F1DE)
 
 // 形勢グラフに重ねる目数の折れ線の色と、振り切れる目数
 val scoreLineColor = Color(0xFFD90429)

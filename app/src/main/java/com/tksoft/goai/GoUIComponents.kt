@@ -453,7 +453,7 @@ private fun KifuTreeView(
             }
         }
 
-        // トラック: 横線もドットも描かない。分岐して別の行へ下りるところだけ、
+        // トラック: 横線は引かず、各手の位置のドットだけにする。分岐して別の行へ下りるところだけ、
         // どこから分かれたか分かるよう細い斜めの線で結ぶ (棒グラフや目数の線より後、つまみの下)
         for (pass in 0..1) {
             val wantActive = pass == 1
@@ -474,6 +474,18 @@ private fun KifuTreeView(
                 // 斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
                 drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
             }
+        }
+        // ドットは現在の手の左右によらず同じ色で、塗りを細い線で縁取る
+        val dotOutline = 1.dp.toPx()
+        for (i in layout.nodes.indices) {
+            if (i == cursorIdx) continue
+            val c = pos(i)
+            if (c.x < left || c.x > right) continue
+            // つまみに重なるドットは描かない
+            val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
+            if (nearThumb) continue
+            drawCircle(sliderDotColor, radius = trackH / 2, center = c)
+            drawCircle(sliderDotOutlineColor, radius = trackH / 2 - dotOutline / 2, center = c, style = Stroke(width = dotOutline))
         }
 
         // 現在の手: Slider のつまみ（縦長の角丸バー）
