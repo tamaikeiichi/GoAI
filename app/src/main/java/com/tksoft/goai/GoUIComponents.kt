@@ -363,7 +363,7 @@ private fun KifuTreeView(
     val activeTickColor = MaterialTheme.colorScheme.onPrimary
     val inactiveTickColor = MaterialTheme.colorScheme.onSecondaryContainer
     val thumbColor = MaterialTheme.colorScheme.primary
-    val containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val containerColor = graphBackgroundColor
     // 現在の手順上で、現在の手までの手 (= Slider のアクティブ側)
     val pathIndex = remember(currentPath) { HashMap<GoNode, Int>().also { m -> currentPath.forEachIndexed { i, n -> m[n] = i } } }
     val currentPathIdx = pathIndex[currentNode] ?: -1
