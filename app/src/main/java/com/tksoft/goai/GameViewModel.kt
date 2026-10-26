@@ -463,9 +463,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             rules = loaded.rules ?: settings.rules,
             handicap = loaded.root.game.handicapStones.size,
         ).also { saveSettings(it) }
-        var last = loaded.root
-        while (true) last = last.children.firstOrNull() ?: break
-        currentNode = last
+        // 読み込んだ直後は、初手から並べて見られるよう棋譜のスタート (初手の前) を示す
+        currentNode = loaded.root
         blackName = loaded.blackName ?: str(R.string.black)
         whiteName = loaded.whiteName ?: str(R.string.white)
         gameDate = loaded.date
@@ -716,9 +715,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             boardSize = r.root.game.size, komi = r.komi, rules = r.rules, handicap = r.root.game.handicapStones.size,
         )
             .also { saveSettings(it) }
-        var n = r.root
-        while (true) n = n.children.firstOrNull { !it.isPvBranch } ?: break
-        currentNode = n
+        // 開いた直後は、初手から並べて見られるよう棋譜のスタート (初手の前) を示す
+        currentNode = r.root
         blackName = r.blackName.ifEmpty { str(R.string.black) }
         whiteName = r.whiteName.ifEmpty { str(R.string.white) }
         gameDate = r.gameDate
