@@ -66,6 +66,14 @@ fun pvNumbering(game: GoGame, start: Int): PvNumbering {
     return PvNumbering(onBoard, replays)
 }
 
+/** 黒番・白番などを示す石 (盤上の石と同じ描き方)。文字の ● ○ の代わりに使う */
+@Composable
+fun StoneIcon(stone: Stone, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawStone(Offset(this.size.width / 2, this.size.height / 2), this.size.minDimension / 0.96f, stone, alpha = 1f)
+    }
+}
+
 /** 盤の外に書く番号付きの石 (盤上の石と同じ描き方) */
 @Composable
 fun NumberedStoneIcon(stone: NumberedStone, modifier: Modifier = Modifier) {
@@ -90,8 +98,9 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
  * 目は実物の碁盤と同じく少し縦長 (BOARD_CELL_ASPECT) で、石は正円
  *
  * @param pvStartMove 読み筋の分岐を表示中なら、番号を付け始める手数 (その手から 1, 2, 3...)
- * @param dragToPlace true なら、触れた位置のやや上 (指に隠れない所) に半透明の石を出し、
- *   ドラッグして離した交点に打つ。13路・19路で交点を正確にタップしにくいとき用
+ * @param placement 石の置き方。13路・19路で交点を正確にタップしにくいときのために、
+ *   DOUBLE_TAP は1回目のタップで半透明の石を出して同じ点の2回目のタップで打ち、
+ *   DRAG は触れた位置のやや上 (指に隠れない所) に半透明の石を出し、ドラッグして離した交点に打つ
  * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
  */
 @Composable
@@ -103,7 +112,7 @@ fun GoBoardView(
     candidates: List<BoardCandidate> = emptyList(),
     result: GameResult? = null,
     pvStartMove: Int? = null,
-    dragToPlace: Boolean = false,
+    placement: Placement = Placement.TAP,
     ghostColor: Stone? = null,
 ) {
     val size = game.size
@@ -111,20 +120,31 @@ fun GoBoardView(
     val cells = size - 1 + 2 * MARGIN
     // ドラッグで打つときの半透明の石の位置
     var ghost by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    // ダブルタップで打つときの、1回目にタップした点 (半透明の石を出す)。局面が変わったら消す
+    var pending by remember(game) { mutableStateOf<Pair<Int, Int>?>(null) }
     // 半透明の石を指からどれだけ上に出すか。触れた点は指の腹の中心なので、指先 (触れた点の 5mm ほど上まで) に
     // 隠れないよう 1cm ほど上に出す
     val liftPx = with(LocalDensity.current) { 64.dp.toPx() }
     Canvas(
         modifier = modifier
             .aspectRatio(1f / BOARD_CELL_ASPECT)
-            .pointerInput(size, dragToPlace) {
+            .pointerInput(size, placement, game) {
                 fun point(pos: Offset, lift: Float): Pair<Int, Int>? {
                     val x = (pos.x / (this.size.width / cells) - MARGIN).roundToInt()
                     val y = ((pos.y - lift) / (this.size.height / cells) - MARGIN).roundToInt()
                     return if (x in 0 until size && y in 0 until size) x to y else null
                 }
-                if (!dragToPlace) {
+                if (placement == Placement.TAP) {
                     detectTapGestures { pos -> point(pos, 0f)?.let { (x, y) -> onTap(x, y) } }
+                } else if (placement == Placement.DOUBLE_TAP) {
+                    // 別の点をタップしたら、半透明の石をそこへ移す
+                    detectTapGestures { pos ->
+                        val p = point(pos, 0f) ?: return@detectTapGestures
+                        if (p == pending) {
+                            pending = null
+                            onTap(p.first, p.second)
+                        } else pending = p
+                    }
                 } else {
                     // 指を置いている間は盤のスクロールより石の位置合わせを優先するので、イベントを消費する
                     awaitEachGesture {
@@ -224,7 +244,7 @@ fun GoBoardView(
 
         // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する。
         // 解析中の候補手の丸に隠れないよう、いちばん最後に描く
-        val g = ghost
+        val g = ghost ?: pending
         if (g != null && ghostColor != null && board[g.first, g.second] == Stone.EMPTY) {
             val c = center(g.first, g.second)
             val guide = lineColor.copy(alpha = 0.6f)

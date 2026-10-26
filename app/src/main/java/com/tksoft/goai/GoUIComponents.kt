@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -51,7 +52,7 @@ fun getPvColor(rank: Int): Color {
  * タップすると読み筋が盤上に番号付きで並ぶ
  */
 @Composable
-fun PvInfoCard(rank: Int, firstMove: String, evaluation: String, selected: Boolean, onTap: () -> Unit) {
+fun PvInfoCard(rank: Int, mover: Stone, firstMove: String, evaluation: String, selected: Boolean, onTap: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -66,6 +67,7 @@ fun PvInfoCard(rank: Int, firstMove: String, evaluation: String, selected: Boole
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            StoneIcon(mover, Modifier.size(18.dp))
             Text(
                 text = firstMove,
                 style = MaterialTheme.typography.titleMedium,
@@ -83,24 +85,22 @@ fun PvInfoCard(rank: Int, firstMove: String, evaluation: String, selected: Boole
 
 /** 対局者の表示 (ShogiGUI の PlayerInfoContent)。持ち駒の代わりにアゲハマを出す */
 @Composable
-fun PlayerStatusSection(name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "") {
+fun PlayerStatusSection(
+    name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "",
+    onNameClick: () -> Unit = {},
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         // 上側の対局者も右寄せにする（左上にメニューボタンを置くため）
         horizontalAlignment = Alignment.End
     ) {
+        // 名前をタップすると編集できる (ShogiGUI と同じ)
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.clickable { onNameClick() }.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = if (stone == Stone.BLACK) "●" else "○",
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
+            StoneIcon(stone, Modifier.size(18.dp))
             Text(
                 text = name,
                 style = MaterialTheme.typography.titleMedium,
@@ -459,7 +459,34 @@ private fun KifuTreeView(
             val diff = ((winrate - 0.5) * 2).toFloat().coerceIn(-1f, 1f)
             val normalized = kotlin.math.sign(diff) * kotlin.math.sqrt(kotlin.math.abs(diff))
             val barColor = if (normalized >= 0) blackBarColor else whiteBarColor
-            drawLine(barColor, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
+            // 中央 (50%) ではほぼ透明、上下の端 (振り切れ) に近づくほど濃くなるグラデーションにする。
+            // 棒の長さによらず同じ位置は同じ濃さになるよう、グラデーションは中央から端までの全体にとる
+            val edgeY = if (normalized >= 0) c.y - barHalfPx() else c.y + barHalfPx()
+            val brush = Brush.verticalGradient(
+                listOf(barColor.copy(alpha = 0.1f), barColor.copy(alpha = 1f)), startY = c.y, endY = edgeY
+            )
+            drawLine(brush, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
+        }
+
+        // 目数の折れ線グラフ (棒グラフに重ねる): 黒のリードを上、白のリードを下にとり、20 目で振り切れ。
+        // 分岐も含め、親の手と線で結ぶ
+        fun leadY(i: Int): Float? = layout.nodes[i].scoreLeadBlack?.let {
+            pos(i).y - (it / MAX_SCORE_LEAD_ON_GRAPH).toFloat().coerceIn(-1f, 1f) * barHalfPx()
+        }
+        val leadStroke = 1.5.dp.toPx()
+        for (i in layout.nodes.indices) {
+            val y = leadY(i) ?: continue
+            val c = pos(i)
+            val p = layout.parentIdx[i]
+            val py = if (p >= 0) leadY(p) else null
+            if (p >= 0 && py != null) {
+                val pc = pos(p)
+                if (maxOf(c.x, pc.x) < left || minOf(c.x, pc.x) > right) continue
+                drawLine(scoreLineColor, Offset(pc.x, py), Offset(c.x, y), strokeWidth = leadStroke)
+            } else if (c.x in left..right) {
+                // 前後の手がまだ解析されていないときも見えるよう点を打つ
+                drawCircle(scoreLineColor, radius = leadStroke, center = Offset(c.x, y))
+            }
         }
 
         // 現在の手: Slider のつまみ（縦長の角丸バー）

@@ -4,6 +4,8 @@
     <string name="about">情報</string>
     <string name="licenses">オープンソースライセンス</string>
     <string name="black">黒</string>
+    <string name="player_name_title_black">黒の対局者名</string>
+    <string name="player_name_title_white">白の対局者名</string>
     <string name="white">白</string>
     <string name="ai_thinking">AI が考えています…</string>
     <string name="counting">整地しています…</string>
@@ -67,9 +69,10 @@
     <string name="board_size">盤の大きさ（変えるとリセット）</string>
     <string name="board_size_format">%1$d路</string>
     <string name="placement">石の置き方</string>
-    <string name="placement_tap">タップ</string>
+    <string name="placement_tap">シングルタップ</string>
+    <string name="placement_double_tap">ダブルタップ（1回目は石を薄く表示）</string>
     <string name="placement_drag">ドラッグ（指の上に石を表示）</string>
     <string name="action_analyze_all">この局面から全て解析</string>
-    <string name="settings_think_time_label">思考時間（AIの手・全て解析）</string>
+    <string name="settings_think_time_label">自動解析時の思考時間</string>
     <string name="settings_think_time_unit">秒</string>
 </resources>

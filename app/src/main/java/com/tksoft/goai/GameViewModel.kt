@@ -50,8 +50,7 @@ data class GameSettings(
     val rules: Rules = Rules.JAPANESE,
     val komi: Double = 6.5,
     val handicap: Int = 0,
-    /** 石の置き方: false = タップ, true = 指のやや上に出る半透明の石をドラッグして離す */
-    val dragToPlace: Boolean = false,
+    val placement: Placement = Placement.TAP,
     /**
      * 思考時間 [ms]: AI が1手に使う時間と、「この局面から全て解析」で1手あたりに使う時間。
      * このアプリは解析が主なので AI の強さは選ばせず、常に最善手を打たせて、強さは思考時間だけで変える
@@ -59,8 +58,18 @@ data class GameSettings(
     val analysisTimeMs: Long = 1000L,
 )
 
-/** 置石の最大数 (9路盤は5子まで) */
-fun maxHandicap(boardSize: Int) = if (boardSize == 9) 5 else 9
+/** 置石の最大数。1子は置石なしで黒が先に打つ (定先) */
+const val MAX_HANDICAP = 9
+
+/** 石の置き方 */
+enum class Placement {
+    /** タップした点に打つ */
+    TAP,
+    /** 1回目のタップで半透明の石を出し、同じ点をもう一度タップすると打つ */
+    DOUBLE_TAP,
+    /** 指のやや上に出る半透明の石をドラッグして、離した点に打つ */
+    DRAG,
+}
 
 sealed class EngineStatus {
     data object Loading : EngineStatus()
@@ -662,6 +671,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         engineGame = target
     }
 
+    /** 対局者名を変える (名前をタップしたときのダイアログから)。空なら「黒」「白」に戻す */
+    fun renamePlayer(color: Stone, name: String) {
+        val n = name.trim()
+        if (color == Stone.BLACK) blackName = n.ifEmpty { str(R.string.black) }
+        else whiteName = n.ifEmpty { str(R.string.white) }
+        saveKifu()
+    }
+
     private fun record() = KifuRecord(currentNode.root, settings.komi, settings.rules, blackName, whiteName, gameDate)
 
     fun toSgf(): String = Sgf.write(record())
@@ -721,8 +738,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             humanColor = if (prefs.getString("humanColor", "B") == "W") Stone.WHITE else Stone.BLACK,
             rules = runCatching { Rules.valueOf(prefs.getString("rules", d.rules.name)!!) }.getOrDefault(d.rules),
             komi = prefs.getFloat("komi", d.komi.toFloat()).toDouble(),
-            handicap = prefs.getInt("handicap", d.handicap),
-            dragToPlace = prefs.getBoolean("dragToPlace", d.dragToPlace),
+            handicap = prefs.getInt("handicap", d.handicap).coerceIn(0, MAX_HANDICAP),
+            // 以前の版の「ドラッグで打つ」の設定 (dragToPlace) も引き継ぐ
+            placement = prefs.getString("placement", null)
+                ?.let { runCatching { Placement.valueOf(it) }.getOrNull() }
+                ?: if (prefs.getBoolean("dragToPlace", false)) Placement.DRAG else d.placement,
             // 下限を上げる前の版で保存した短い思考時間 (0.05 秒など) は下限に合わせる
             analysisTimeMs = prefs.getLong("analysisTimeMs", d.analysisTimeMs).coerceIn(MIN_THINK_TIME_MS, MAX_THINK_TIME_MS),
         )
@@ -735,7 +755,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .putString("rules", s.rules.name)
             .putFloat("komi", s.komi.toFloat())
             .putInt("handicap", s.handicap)
-            .putBoolean("dragToPlace", s.dragToPlace)
+            .putString("placement", s.placement.name)
             .putLong("analysisTimeMs", s.analysisTimeMs)
             .apply()
     }

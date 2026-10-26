@@ -5,6 +5,8 @@
     <string name="about">About</string>
     <string name="licenses">Open source licenses</string>
     <string name="black">Black</string>
+    <string name="player_name_title_black">Name of the black player</string>
+    <string name="player_name_title_white">Name of the white player</string>
     <string name="white">White</string>
     <string name="ai_thinking">AI is thinking…</string>
     <string name="counting">Counting…</string>
@@ -68,9 +70,10 @@
     <string name="board_size">Board size (changing it resets the board)</string>
     <string name="board_size_format">%1$d×%1$d</string>
     <string name="placement">How to place stones</string>
-    <string name="placement_tap">Tap</string>
+    <string name="placement_tap">Single tap</string>
+    <string name="placement_double_tap">Double tap (first tap shows a faint stone)</string>
     <string name="placement_drag">Drag (stone shown above your finger)</string>
     <string name="action_analyze_all">Analyze all from here</string>
-    <string name="settings_think_time_label">Think time (AI moves, analyze all)</string>
+    <string name="settings_think_time_label">Think time for auto analysis</string>
     <string name="settings_think_time_unit">s</string>
 </resources>

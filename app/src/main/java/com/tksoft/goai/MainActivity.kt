@@ -24,6 +24,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -172,6 +173,7 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
+    var editingName by rememberSaveable { mutableStateOf<Stone?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var kifuIoMessage by remember { mutableStateOf<String?>(null) }
     val exportKifuLauncher = rememberLauncherForActivityResult(
@@ -235,22 +237,30 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
         ) { innerPadding ->
             val isWide = LocalConfiguration.current.screenWidthDp >= 840
             if (isWide) {
-                Row(
+                // 盤をなるべく大きくするため、左からメニューボタン・盤・(対局者名・読み筋カード・対局者名) の3列にする
+                BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
-                        // 盤を少しでも大きくするため、画面の端との余白は狭くする
-                        .padding(top = innerPadding.calculateTopPadding() + 8.dp, start = 8.dp, end = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        .padding(innerPadding)
+                        .padding(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(0.5f).verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        BoardArea(vm, Modifier.sizeIn(maxWidth = 500.dp, maxHeight = 500.dp)) { showMenu = true }
-                        Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
-                    }
-                    Column(modifier = Modifier.weight(0.5f).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                        PvCards(vm)
-                        Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
+                    val gap = 8.dp
+                    val menuWidth = 48.dp
+                    // 右の列の幅は最低これだけ取り、残りを盤にする。盤は縦長なので高さからも幅を決める
+                    val minSideWidth = 240.dp
+                    val boardWidth = minOf(maxWidth - menuWidth - minSideWidth - gap * 2, maxHeight / BOARD_CELL_ASPECT)
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
+                        Board(vm, Modifier.width(boardWidth))
+                        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                            PlayerSection(vm, top = true) { editingName = it }
+                            Column(
+                                modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                            ) {
+                                PvCards(vm)
+                                PvReplayNote(vm)
+                            }
+                            PlayerSection(vm, top = false) { editingName = it }
+                        }
                     }
                 }
             } else {
@@ -261,13 +271,18 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // 盤を少しでも大きくするため、画面の端との余白は狭くする
-                    BoardArea(vm, Modifier.padding(horizontal = 6.dp, vertical = 8.dp)) { showMenu = true }
+                    BoardArea(
+                        vm, Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                        onMenu = { showMenu = true }, onEditName = { editingName = it },
+                    )
                     Column(modifier = Modifier.padding(8.dp)) { PvCards(vm) }
                     // bottomBar に隠れる分をスクロールで見られるようにする
                     Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
                 }
             }
         }
+
+        editingName?.let { PlayerNameDialog(vm, it) { editingName = null } }
 
         // エンジン準備完了の通知。クリック系の Modifier を付けないのでタッチは下の画面にそのまま届く
         LaunchedEffect(vm.engineReadyToast) {
@@ -322,11 +337,11 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     }
                     context.startActivity(Intent.createChooser(send, null))
                 }
-                MenuItem({ MarkIcon("●") }, text = { Text(stringResource(R.string.menu_play_black)) }) {
+                MenuItem({ MarkIcon(Stone.BLACK) }, text = { Text(stringResource(R.string.menu_play_black)) }) {
                     showMenu = false
                     if (ready) vm.playAs(Stone.BLACK)
                 }
-                MenuItem({ MarkIcon("○") }, text = { Text(stringResource(R.string.menu_play_white)) }) {
+                MenuItem({ MarkIcon(Stone.WHITE) }, text = { Text(stringResource(R.string.menu_play_white)) }) {
                     showMenu = false
                     if (ready) vm.playAs(Stone.WHITE)
                 }
@@ -481,22 +496,26 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
                                             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
                                     ) {
                                         Row(modifier = Modifier.fillMaxWidth()) {
-                                            Text(
-                                                "●${entry.blackName}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(0.5f)
-                                            )
-                                            Text(
-                                                "○${entry.whiteName}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(0.5f)
-                                            )
+                                            Row(Modifier.weight(0.5f), verticalAlignment = Alignment.CenterVertically) {
+                                                StoneIcon(Stone.BLACK, Modifier.size(14.dp))
+                                                Text(
+                                                    " ${entry.blackName}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                            Row(Modifier.weight(0.5f), verticalAlignment = Alignment.CenterVertically) {
+                                                StoneIcon(Stone.WHITE, Modifier.size(14.dp))
+                                                Text(
+                                                    " ${entry.whiteName}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
                                         }
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -556,31 +575,46 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
 
 /** 上の対局者 (AI)・盤・下の対局者 (あなた) */
 @Composable
-private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> Unit) {
-    val game = vm.game
-    val bottom = vm.humanColor ?: Stone.BLACK
-    val top = bottom.opponent
-    fun nameOf(s: Stone) = if (s == Stone.BLACK) vm.blackName else vm.whiteName
-    val result = vm.result
-    val resultText = result?.let { resultText(it.code) } ?: ""
-    fun captures(s: Stone) = if (s == Stone.BLACK) game.capturedByBlack else game.capturedByWhite
-    val turn = if (result == null) game.toPlay else null
-
+private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> Unit, onEditName: (Stone) -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        PlayerStatusSection(
-            name = nameOf(top),
-            stone = top,
-            captures = captures(top),
-            isActive = turn == top,
-            gameResult = when {
-                vm.thinking && game.isEndedByPasses -> stringResource(R.string.counting)
-                vm.thinking -> stringResource(R.string.ai_thinking)
-                else -> ""
-            },
-        )
+        PlayerSection(vm, top = true, onEditName)
         MenuButton(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 4.dp), onClick = onMenu)
     }
+    Board(vm, boardModifier.fillMaxWidth())
+    PvReplayNote(vm)
+    PlayerSection(vm, top = false, onEditName)
+}
 
+/**
+ * 対局者の表示。下 (top = false) があなた、上が相手 (AI)。
+ * 上には AI の思考中の表示、下には対局の結果を添える
+ */
+@Composable
+private fun PlayerSection(vm: GameViewModel, top: Boolean, onEditName: (Stone) -> Unit) {
+    val game = vm.game
+    val bottom = vm.humanColor ?: Stone.BLACK
+    val stone = if (top) bottom.opponent else bottom
+    val result = vm.result
+    val turn = if (result == null) game.toPlay else null
+    PlayerStatusSection(
+        name = if (stone == Stone.BLACK) vm.blackName else vm.whiteName,
+        stone = stone,
+        captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
+        isActive = turn == stone,
+        gameResult = when {
+            !top -> result?.let { resultText(it.code) } ?: ""
+            vm.thinking && game.isEndedByPasses -> stringResource(R.string.counting)
+            vm.thinking -> stringResource(R.string.ai_thinking)
+            else -> ""
+        },
+        onNameClick = { onEditName(stone) },
+    )
+}
+
+/** 盤と、その上に重ねるエンジンの読み込み中・エラーの表示 */
+@Composable
+private fun Board(vm: GameViewModel, modifier: Modifier) {
+    val game = vm.game
     val shown = vm.shownAnalysis
     // 解析中の局面では、読み筋カードの候補手を盤上にも示す
     val candidates = if (shown != null && shown.first === vm.currentNode && vm.selectedPvRank == null) {
@@ -593,12 +627,12 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
         GoBoardView(
             game = game,
             onTap = vm::onBoardTap,
-            modifier = boardModifier.fillMaxWidth(),
+            modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
-            result = result,
+            result = vm.result,
             pvStartMove = vm.pvStartMove,
-            dragToPlace = vm.settings.dragToPlace,
+            placement = vm.settings.placement,
             ghostColor = if (vm.canPlay) game.toPlay else null,
         )
         when (val s = vm.engineStatus) {
@@ -614,34 +648,44 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
             else -> {}
         }
     }
+}
 
-    // 読み筋で、石が取られた後に同じ点へ打った手 (盤上に番号を書けない手) を盤の外に書く
-    vm.pvStartMove?.let { start ->
-        val replays = pvNumbering(game, start).replays
-        if (replays.isNotEmpty()) {
-            // 新聞の棋譜と同じく「打ち直した手 [その点の盤上の石]」を並べる
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                replays.forEach { (later, at) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        NumberedStoneIcon(later, Modifier.size(28.dp))
-                        Text(" [", style = MaterialTheme.typography.titleMedium)
-                        NumberedStoneIcon(at, Modifier.size(28.dp))
-                        Text("]", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
+/** 読み筋で、石が取られた後に同じ点へ打った手 (盤上に番号を書けない手) を盤の外に書く */
+@Composable
+private fun PvReplayNote(vm: GameViewModel) {
+    val start = vm.pvStartMove ?: return
+    val replays = pvNumbering(vm.game, start).replays
+    if (replays.isEmpty()) return
+    // 新聞の棋譜と同じく「打ち直した手 [その点の盤上の石]」を並べる
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        replays.forEach { (later, at) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NumberedStoneIcon(later, Modifier.size(28.dp))
+                Text(" [", style = MaterialTheme.typography.titleMedium)
+                NumberedStoneIcon(at, Modifier.size(28.dp))
+                Text("]", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
+}
 
-    PlayerStatusSection(
-        name = nameOf(bottom),
-        stone = bottom,
-        captures = captures(bottom),
-        isActive = turn == bottom,
-        gameResult = resultText,
+/** 対局者名の編集 (ShogiGUI と同じく、名前をタップすると開く) */
+@Composable
+private fun PlayerNameDialog(vm: GameViewModel, stone: Stone, onDismiss: () -> Unit) {
+    var text by remember(stone) { mutableStateOf(if (stone == Stone.BLACK) vm.blackName else vm.whiteName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(if (stone == Stone.BLACK) R.string.player_name_title_black else R.string.player_name_title_white))
+        },
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, singleLine = true) },
+        confirmButton = {
+            TextButton(onClick = { vm.renamePlayer(stone, text); onDismiss() }) { Text(stringResource(android.R.string.ok)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }
 
@@ -655,12 +699,13 @@ private fun PvCards(vm: GameViewModel) {
     analysis.candidates.sortedBy { it.order }.take(3).forEachIndexed { i, c ->
         val rank = i + 1
         val first = c.pv.firstOrNull() ?: c.move
-        val mover = if (vm.shownAnalysis?.first?.game?.toPlay == Stone.WHITE) "○" else "●"
+        val mover = vm.shownAnalysis?.first?.game?.toPlay ?: Stone.BLACK
         val winrate = if (viewer == Stone.BLACK) c.winrateBlack else 1 - c.winrateBlack
         val lead = if (viewer == Stone.BLACK) c.scoreLeadBlack else -c.scoreLeadBlack
         PvInfoCard(
             rank = rank,
-            firstMove = "$mover ${GtpCoord.display(first, stringResource(R.string.pass))}",
+            mover = mover,
+            firstMove = GtpCoord.display(first, stringResource(R.string.pass)),
             evaluation = stringResource(
                 label,
                 String.format(Locale.US, "%.0f", winrate * 100),
@@ -781,16 +826,21 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BOARD_SIZES.forEach { n ->
                         FilterChip(s.boardSize == n, {
-                            // 盤の大きさを変えたら、その盤で選べない置石は外す
-                            s = s.copy(boardSize = n, handicap = s.handicap.coerceAtMost(maxHandicap(n)))
+                            s = s.copy(boardSize = n)
                         }, { Text(stringResource(R.string.board_size_format, n)) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.placement), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(!s.dragToPlace, { s = s.copy(dragToPlace = false) }, { Text(stringResource(R.string.placement_tap)) })
-                    FilterChip(s.dragToPlace, { s = s.copy(dragToPlace = true) }, { Text(stringResource(R.string.placement_drag)) })
+                    Placement.entries.forEach { p ->
+                        val label = when (p) {
+                            Placement.TAP -> R.string.placement_tap
+                            Placement.DOUBLE_TAP -> R.string.placement_double_tap
+                            Placement.DRAG -> R.string.placement_drag
+                        }
+                        FilterChip(s.placement == p, { s = s.copy(placement = p) }, { Text(stringResource(label)) })
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.rules), style = MaterialTheme.typography.labelLarge)
@@ -803,14 +853,25 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.handicap_next_reset), style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (listOf(0) + (2..maxHandicap(s.boardSize))).forEach { h ->
-                        FilterChip(s.handicap == h, {
-                            s = s.copy(handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi)
-                        }, { Text(if (h == 0) stringResource(R.string.handicap_none) else "$h") })
-                    }
+                // 置石は 0〜9 子をスライダーで選ぶ (こみと同じく、値を大きく表示する)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(stringResource(R.string.handicap_next_reset), style = MaterialTheme.typography.labelLarge)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (s.handicap == 0) stringResource(R.string.handicap_none) else "${s.handicap}",
+                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
+                Slider(
+                    value = s.handicap.toFloat(),
+                    onValueChange = {
+                        val h = it.roundToInt().coerceIn(0, MAX_HANDICAP)
+                        if (h != s.handicap) s = s.copy(handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi)
+                    },
+                    valueRange = 0f..MAX_HANDICAP.toFloat(),
+                    steps = MAX_HANDICAP - 1,
+                )
                 Spacer(Modifier.height(8.dp))
                 // AI が1手に使う時間と、「この局面から全て解析」で1手あたりに使う時間（単発の解析は停止するまで考え続ける）。
                 // 短い時間ほど細かく選べるよう、スライダーは対数目盛り（倍になるごとに同じ距離）で連続的に動かし、
@@ -981,12 +1042,12 @@ private fun MenuItem(icon: @Composable () -> Unit, text: @Composable () -> Unit,
     }
 }
 
-// 黒・白の印 (● ○) をアイコンの代わりに表示する
+// 黒・白の石をアイコンの代わりに表示する
 @Composable
-private fun MarkIcon(mark: String) {
+private fun MarkIcon(stone: Stone) {
     // ほかの項目のアイコンと同じ 24dp の枠に収めて、項目名の位置をそろえる
     Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-        Text(mark, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        StoneIcon(stone, Modifier.size(20.dp))
     }
 }
 
