@@ -28,6 +28,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import com.tksoft.goai.ui.theme.GoAITheme
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -362,7 +364,7 @@ private fun KifuTreeView(
     val activeTrackColor = MaterialTheme.colorScheme.primary
     val inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer
     val thumbColor = sliderThumbColor
-    val containerColor = graphBackgroundColor
+    val containerBrush = Brush.verticalGradient(listOf(graphBackgroundTopColor, graphBackgroundBottomColor))
     // 現在の手順上で、現在の手までの手 (= Slider のアクティブ側)
     val pathIndex = remember(currentPath) { HashMap<GoNode, Int>().also { m -> currentPath.forEachIndexed { i, n -> m[n] = i } } }
     val currentPathIdx = pathIndex[currentNode] ?: -1
@@ -372,7 +374,7 @@ private fun KifuTreeView(
         modifier = modifier
             .height(viewHeight)
             .clip(MaterialTheme.shapes.large)
-            .background(containerColor)
+            .background(containerBrush)
             .onSizeChanged { viewSize = it }
             .pointerInput(root) {
                 // 1本指のドラッグで上下スクロール（2本指はセクション側のピンチが消費するので来ない）
@@ -429,11 +431,7 @@ private fun KifuTreeView(
             val diff = ((winrate - 0.5) * 2).toFloat().coerceIn(-1f, 1f)
             val normalized = kotlin.math.sign(diff) * kotlin.math.sqrt(kotlin.math.abs(diff))
             val barColor = if (normalized >= 0) blackBarColor else whiteBarColor
-            // 中央 (50%) はグレーで、上 (黒有利) へ行くほど黒、下 (白有利) へ行くほど白になるグラデーションにする。
-            // 棒の長さによらず同じ位置は同じ色になるよう、グラデーションは中央から端までの全体にとる
-            val edgeY = if (normalized >= 0) c.y - barHalfPx() else c.y + barHalfPx()
-            val brush = Brush.verticalGradient(listOf(barMidColor, barColor), startY = c.y, endY = edgeY)
-            drawLine(brush, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
+            drawLine(barColor, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
         }
 
         // 目数の折れ線グラフ (棒グラフに重ねる): 黒のリードを上、白のリードを下にとり、20 目で振り切れ。
@@ -502,7 +500,7 @@ private fun KifuTreeView(
                 size = androidx.compose.ui.geometry.Size(thumbW, thumbH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(thumbW / 2)
             )
-            // 外周は塗りより一段濃い色の細い線で囲む (線の太さの半分だけ内側に描き、つまみの大きさは変えない)
+            // 外周は細い線で囲む (線の太さの半分だけ内側に描き、つまみの大きさは変えない)
             val outline = 1.dp.toPx()
             drawRoundRect(
                 sliderThumbOutlineColor,
@@ -532,5 +530,42 @@ fun Modifier.repeatingClickable(enabled: Boolean = true, initialDelay: Long = 50
             val released = try { tryAwaitRelease() } finally { job.cancel() }
             if (released && !repeated) currentOnClick()
         })
+    }
+}
+
+// Android Studio のプレビュー用: 9路で 40 手の本譜と、20 手目からの分岐を持つ形勢グラフ
+@Preview(showBackground = true, widthDp = 400)
+@Composable
+private fun KifuTreeSectionPreview() {
+    val (path, current) = remember {
+        fun next(node: GoNode, seed: Int, branch: Boolean = false): GoNode {
+            // 盤上を散らばって打つ (打てない点は飛ばす)
+            val g = (0 until 81).firstNotNullOfOrNull { j ->
+                val k = (seed * 37 + j) % 81
+                node.game.play(Move.Play(k % 9, k / 9))
+            } ?: node.game.play(Move.Pass)!!
+            return GoNode(g, node, isPvBranch = branch).also { node.children.add(it) }
+        }
+        val root = GoNode(GoGame(9))
+        val path = mutableListOf(root)
+        for (i in 1..40) {
+            val n = next(path.last(), i * 3)
+            // 序盤は互角、中盤で白に振れ、終盤は黒が逆転する形勢
+            val lead = 12 * kotlin.math.sin(i / 6.0) + i * 0.25
+            n.scoreLeadBlack = lead
+            n.winrateBlack = 0.5 + 0.5 * kotlin.math.tanh(lead / 8)
+            path.add(n)
+        }
+        var b = path[20]
+        for (i in 1..8) {
+            b = next(b, 100 + i * 11, branch = true)
+            b.scoreLeadBlack = -4.0 - i
+            b.winrateBlack = 0.5 + 0.5 * kotlin.math.tanh(b.scoreLeadBlack!! / 8)
+        }
+        path to path[24]
+    }
+    var node by remember { mutableStateOf(current) }
+    GoAITheme {
+        KifuTreeSection(currentNode = node, currentPath = path, onNodeChange = { node = it })
     }
 }
