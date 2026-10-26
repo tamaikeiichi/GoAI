@@ -234,11 +234,14 @@ fun GoBoardView(
             }
         }
 
-        // 解析中の候補手: 読み筋カードと同じ色の丸と順位
+        // 解析中の候補手: 読み筋カードと同じ色の丸と順位。
+        // どちらの手番の候補か分かるよう、丸の縁を打つ側の色 (黒番なら黒、白番なら白) のやや太い線にする
+        val candidateRim = if (game.toPlay == Stone.BLACK) Color(0xFF111111) else Color.White
+        val rimWidth = cell * 0.07f
         candidates.forEach { cand ->
             val c = center(cand.move.x, cand.move.y)
             drawCircle(cand.color, radius = cell * 0.42f, center = c)
-            drawCircle(lineColor.copy(alpha = 0.5f), radius = cell * 0.42f, center = c, style = Stroke(cell * 0.02f))
+            drawCircle(candidateRim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth))
             drawLabel(cand.label, c, cell * 0.45f, Color(0xFF1B1B1B))
         }
 
