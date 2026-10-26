@@ -12,6 +12,9 @@ val barMidColor = Color(0xFF888888)
 // 形勢グラフの背景 (グレー)
 val graphBackgroundColor = Color(0xFF808080)
 
+// 形勢グラフのスライダーの、現在の手を示す縦棒 (つまみ) の色
+val sliderThumbColor = Color(0xFFFF6161)
+
 // 形勢グラフに重ねる目数の折れ線の色と、振り切れる目数
 val scoreLineColor = Color(0xFFD32F2F)
 const val MAX_SCORE_LEAD_ON_GRAPH = 20.0
