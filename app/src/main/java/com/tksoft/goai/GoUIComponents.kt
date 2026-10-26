@@ -21,6 +21,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -416,41 +417,6 @@ private fun KifuTreeView(
         val cursorIdx = layout.indexOf[currentNode]
         val cut = thumbW / 2 + thumbGap // つまみの左右はトラックを切り欠く
 
-        // トラック: 横線は引かず、各手の位置のドットだけにする。未到達側を先に、到達側を上に描く。
-        // 分岐して別の行へ下りるところだけ、どこから分かれたか分かるよう細い斜めの線で結ぶ
-        for (pass in 0..1) {
-            val wantActive = pass == 1
-            for (i in layout.nodes.indices) {
-                val p = layout.parentIdx[i]
-                if (p < 0 || layout.row[p] == layout.row[i]) continue
-                val node = layout.nodes[i]
-                if (isActive(node) != wantActive) continue
-                var a = pos(p); var b = pos(i)
-                if (b.x < left || a.x > right) continue
-                val len = (b - a).getDistance()
-                if (len <= 0f) continue
-                val dir = (b - a) / len
-                var l = len
-                if (p == cursorIdx) { a += dir * cut; l -= cut }
-                if (i == cursorIdx) { b -= dir * cut; l -= cut }
-                if (l <= 0f) continue
-                // 斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
-                drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
-            }
-            for (i in layout.nodes.indices) {
-                if (i == cursorIdx) continue
-                val node = layout.nodes[i]
-                // 根は子（最初の手）の色に合わせる
-                val colorNode = if (layout.parentIdx[i] < 0) node.continuationChild() ?: node.children.firstOrNull() ?: node else node
-                if (isActive(colorNode) != wantActive) continue
-                val c = pos(i)
-                if (c.x < left || c.x > right) continue
-                // つまみに重なるドットは描かない
-                val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
-                if (!nearThumb) drawCircle(trackColor(colorNode), radius = trackH / 2, center = c)
-            }
-        }
-
         // 形勢棒グラフ（解析済みの全ての手）: 各手の位置を中心に上下へ伸ばす。
         // 囲碁は黒の勝率で描く (上が黒有利・下が白有利、50% が中心、0% / 100% で振り切れ)。
         // 囲碁の勝率は将棋の評価値ほど振れず 50% 近くにとどまることが多いので、50% からの差の平方根を棒の長さにして、
@@ -491,6 +457,42 @@ private fun KifuTreeView(
             }
         }
 
+        // トラック: 横線は引かず、各手の位置のドットだけにする。未到達側を先に、到達側を上に描く。
+        // 分岐して別の行へ下りるところだけ、どこから分かれたか分かるよう細い斜めの線で結ぶ。
+        // 棒グラフや目数の線に隠れないよう、それらより後 (つまみの下) に半透明で描く
+        for (pass in 0..1) {
+            val wantActive = pass == 1
+            for (i in layout.nodes.indices) {
+                val p = layout.parentIdx[i]
+                if (p < 0 || layout.row[p] == layout.row[i]) continue
+                val node = layout.nodes[i]
+                if (isActive(node) != wantActive) continue
+                var a = pos(p); var b = pos(i)
+                if (b.x < left || a.x > right) continue
+                val len = (b - a).getDistance()
+                if (len <= 0f) continue
+                val dir = (b - a) / len
+                var l = len
+                if (p == cursorIdx) { a += dir * cut; l -= cut }
+                if (i == cursorIdx) { b -= dir * cut; l -= cut }
+                if (l <= 0f) continue
+                // 斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
+                drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
+            }
+            for (i in layout.nodes.indices) {
+                if (i == cursorIdx) continue
+                val node = layout.nodes[i]
+                // 根は子（最初の手）の色に合わせる
+                val colorNode = if (layout.parentIdx[i] < 0) node.continuationChild() ?: node.children.firstOrNull() ?: node else node
+                if (isActive(colorNode) != wantActive) continue
+                val c = pos(i)
+                if (c.x < left || c.x > right) continue
+                // つまみに重なるドットは描かない
+                val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
+                if (!nearThumb) drawCircle(trackColor(colorNode), radius = trackH / 2, center = c, alpha = TRACK_DOT_ALPHA)
+            }
+        }
+
         // 現在の手: Slider のつまみ（縦長の角丸バー）
         cursorIdx?.let { i ->
             val c = pos(i)
@@ -500,9 +502,21 @@ private fun KifuTreeView(
                 size = androidx.compose.ui.geometry.Size(thumbW, thumbH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(thumbW / 2)
             )
+            // 外周は塗りより一段濃い色の細い線で囲む (線の太さの半分だけ内側に描き、つまみの大きさは変えない)
+            val outline = 1.dp.toPx()
+            drawRoundRect(
+                sliderThumbOutlineColor,
+                topLeft = Offset(c.x - thumbW / 2 + outline / 2, c.y - thumbH / 2 + outline / 2),
+                size = androidx.compose.ui.geometry.Size(thumbW - outline, thumbH - outline),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius((thumbW - outline) / 2),
+                style = Stroke(width = outline)
+            )
         }
     }
 }
+
+// 形勢グラフのスライダーのドットの不透明度 (棒グラフの上に重ねるので半透明にする)
+private const val TRACK_DOT_ALPHA = 0.6f
 
 @Composable
 fun Modifier.repeatingClickable(enabled: Boolean = true, initialDelay: Long = 500L, delay: Long = 100L, onClick: () -> Unit): Modifier {
