@@ -4,9 +4,10 @@ import androidx.compose.ui.graphics.Color
 
 // 形勢グラフの棒の色 (ShogiGUI の senteBarColor / goteBarColor に相当)。
 // グラフの背景は淡いベージュ (surfaceContainerHighest) なので、白はほぼ白にしても見分けられる。
-// 濃さ (透明度) はグラフ側で、中央から上下の端へのグラデーションにする
+// グラフ側で、中央のグレー (barMidColor) から上の端の黒・下の端の白へのグラデーションにする
 val blackBarColor = Color(0xFF111111)
 val whiteBarColor = Color(0xFFFFFFFF)
+val barMidColor = Color(0xFF888888)
 
 // 形勢グラフに重ねる目数の折れ線の色と、振り切れる目数
 val scoreLineColor = Color(0xFFD32F2F)

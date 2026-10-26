@@ -461,12 +461,10 @@ private fun KifuTreeView(
             val diff = ((winrate - 0.5) * 2).toFloat().coerceIn(-1f, 1f)
             val normalized = kotlin.math.sign(diff) * kotlin.math.sqrt(kotlin.math.abs(diff))
             val barColor = if (normalized >= 0) blackBarColor else whiteBarColor
-            // 中央 (50%) ではほぼ透明、上下の端 (振り切れ) に近づくほど濃くなるグラデーションにする。
-            // 棒の長さによらず同じ位置は同じ濃さになるよう、グラデーションは中央から端までの全体にとる
+            // 中央 (50%) はグレーで、上 (黒有利) へ行くほど黒、下 (白有利) へ行くほど白になるグラデーションにする。
+            // 棒の長さによらず同じ位置は同じ色になるよう、グラデーションは中央から端までの全体にとる
             val edgeY = if (normalized >= 0) c.y - barHalfPx() else c.y + barHalfPx()
-            val brush = Brush.verticalGradient(
-                listOf(barColor.copy(alpha = 0.1f), barColor.copy(alpha = 1f)), startY = c.y, endY = edgeY
-            )
+            val brush = Brush.verticalGradient(listOf(barMidColor, barColor), startY = c.y, endY = edgeY)
             drawLine(brush, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
         }
 
