@@ -94,7 +94,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
 /**
  * 碁盤。将棋盤と違い、石はマスの中ではなく線の交点に置く。
  * 座標は OGS (online-go.com) と同じく盤の外側の欄 (MARGIN) に書く。上下に数字 (左から 1〜)、
- * 左右にアルファベット (上から A〜、I は使わない) をやや太い字 (Medium) で書く。左上が 1A
+ * 左右にアルファベット (上から A〜、I は使わない) を標準の太さの字で書く。左上が 1A
  * 目は実物の碁盤と同じく少し縦長 (BOARD_CELL_ASPECT) で、石は正円
  *
  * @param pvStartMove 読み筋の分岐を表示中なら、番号を付け始める手数 (その手から 1, 2, 3...)
@@ -319,9 +319,9 @@ private fun DrawScope.drawStone(c: Offset, cell: Float, stone: Stone, alpha: Flo
     }
 }
 
-// 四辺の座標の字。太字 (擬似ボールド) より少し細い Medium (500) にする
+// 四辺の座標の字。盤上の番号 (擬似ボールド) より細い標準の太さ (Regular, 400) にする
 private val coordinateTypeface: android.graphics.Typeface =
-    android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+    android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
 
 /** @param typeface 指定すると、擬似ボールドにせずその書体で書く */
 private fun DrawScope.drawLabel(

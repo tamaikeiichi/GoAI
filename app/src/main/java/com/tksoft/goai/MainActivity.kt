@@ -237,8 +237,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                         .padding(innerPadding)
-                        // 盤を bottomBar のすぐ上まで大きくするため、下には余白を付けない
-                        .padding(start = 8.dp, top = 8.dp, end = 8.dp)
+                        // 盤をなるべく大きくするが、bottomBar とは少し離す
+                        .padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp)
                 ) {
                     val gap = 8.dp
                     val menuWidth = 48.dp
