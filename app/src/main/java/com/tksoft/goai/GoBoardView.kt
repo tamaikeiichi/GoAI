@@ -94,7 +94,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
 /**
  * 碁盤。将棋盤と違い、石はマスの中ではなく線の交点に置く。
  * 座標は OGS (online-go.com) と同じく盤の外側の欄 (MARGIN) に書く。上下に数字 (左から 1〜)、
- * 左右にアルファベット (上から A〜、I は使わない) を太字で書く。左上が 1A
+ * 左右にアルファベット (上から A〜、I は使わない) をやや太い字 (Medium) で書く。左上が 1A
  * 目は実物の碁盤と同じく少し縦長 (BOARD_CELL_ASPECT) で、石は正円
  *
  * @param pvStartMove 読み筋の分岐を表示中なら、番号を付け始める手数 (その手から 1, 2, 3...)
@@ -291,10 +291,10 @@ private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float) {
         // 左上を 1A にする (新聞の棋譜と同じく上辺に数字、左辺に記号)。GTP の座標 (列が記号、行は下から) とは違う
         val col = (i + 1).toString()
         val row = COLUMN_LABELS[i].toString()
-        drawLabel(col, Offset(px, cellH * LABEL_POS), ts, labelColor)
-        drawLabel(col, Offset(px, cellH * far), ts, labelColor)
-        drawLabel(row, Offset(cell * LABEL_POS, py), ts, labelColor)
-        drawLabel(row, Offset(cell * far, py), ts, labelColor)
+        drawLabel(col, Offset(px, cellH * LABEL_POS), ts, labelColor, typeface = coordinateTypeface)
+        drawLabel(col, Offset(px, cellH * far), ts, labelColor, typeface = coordinateTypeface)
+        drawLabel(row, Offset(cell * LABEL_POS, py), ts, labelColor, typeface = coordinateTypeface)
+        drawLabel(row, Offset(cell * far, py), ts, labelColor, typeface = coordinateTypeface)
     }
 }
 
@@ -319,13 +319,21 @@ private fun DrawScope.drawStone(c: Offset, cell: Float, stone: Stone, alpha: Flo
     }
 }
 
-private fun DrawScope.drawLabel(text: String, c: Offset, textSize: Float, color: Color, bold: Boolean = true) {
+// 四辺の座標の字。太字 (擬似ボールド) より少し細い Medium (500) にする
+private val coordinateTypeface: android.graphics.Typeface =
+    android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+
+/** @param typeface 指定すると、擬似ボールドにせずその書体で書く */
+private fun DrawScope.drawLabel(
+    text: String, c: Offset, textSize: Float, color: Color, bold: Boolean = true,
+    typeface: android.graphics.Typeface? = null,
+) {
     val paint = android.graphics.Paint().apply {
         isAntiAlias = true
         this.textSize = textSize
         this.color = color.toArgb()
         textAlign = android.graphics.Paint.Align.CENTER
-        isFakeBoldText = bold
+        if (typeface != null) this.typeface = typeface else isFakeBoldText = bold
     }
     val y = c.y - (paint.descent() + paint.ascent()) / 2
     drawContext.canvas.nativeCanvas.drawText(text, c.x, y, paint)

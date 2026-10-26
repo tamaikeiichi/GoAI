@@ -12,7 +12,6 @@
     <string name="counting">Counting…</string>
     <string name="evaluation_format">Your win rate %1$s%%  Score %2$s</string>
     <string name="illegal_move">You cannot play there</string>
-    <string name="engine_loading">Loading KataGo…</string>
     <string name="engine_error">KataGo failed to start: %1$s</string>
     <string name="result_draw">Draw (jigo)</string>
     <string name="result_resign">%1$s wins by resignation</string>
@@ -30,7 +29,6 @@
     <string name="nav_next">Next</string>
     <string name="menu_content_description">Menu</string>
     <string name="close">Close</string>
-    <string name="engine_ready_toast">%1$s is ready</string>
     <string name="menu_share_sgf">Share game record (SGF)</string>
     <string name="menu_copy_sgf">Copy game record (SGF)</string>
     <string name="copied">Copied</string>

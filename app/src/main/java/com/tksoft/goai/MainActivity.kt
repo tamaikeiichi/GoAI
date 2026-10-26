@@ -54,6 +54,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.History
@@ -199,9 +200,6 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             }
         }
     }
-    // 準備完了ポップアップを bottomBar のすぐ上に出すため、bottomBar の高さを測る
-    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
-    val density = LocalDensity.current
 
     LaunchedEffect(vm.message) {
         vm.message?.let {
@@ -218,9 +216,7 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             bottomBar = {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onSizeChanged { bottomBarHeightPx = it.height }
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
@@ -241,13 +237,15 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
                         .padding(innerPadding)
-                        .padding(8.dp)
+                        // 盤を bottomBar のすぐ上まで大きくするため、下には余白を付けない
+                        .padding(start = 8.dp, top = 8.dp, end = 8.dp)
                 ) {
                     val gap = 8.dp
                     val menuWidth = 48.dp
                     // 右の列の幅は最低これだけ取り、残りを盤にする。盤は縦長なので高さからも幅を決める
-                    val minSideWidth = 240.dp
+                    val minSideWidth = 180.dp
                     val boardWidth = minOf(maxWidth - menuWidth - minSideWidth - gap * 2, maxHeight / BOARD_CELL_ASPECT)
+                        .coerceAtLeast(0.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                         MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
                         Board(vm, Modifier.width(boardWidth))
@@ -256,23 +254,26 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                             ) {
-                                PvCards(vm)
+                                PvCards(vm, compact = true)
                                 PvReplayNote(vm)
                             }
                             PlayerSection(vm, top = false, alignStart = true) { editingName = it }
                         }
                     }
                 }
-            } else {
+            } else BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(top = innerPadding.calculateTopPadding())) {
+                // 盤は幅いっぱいにするが、背の低い画面 (横にしたスマホ・分割画面など) では盤が見切れないよう、
+                // 上下の対局者表示と bottomBar を除いた高さに収まる大きさまでにする
+                val playersHeight = 150.dp
+                val boardMaxWidth = ((maxHeight - innerPadding.calculateBottomPadding() - playersHeight) / BOARD_CELL_ASPECT)
+                    .coerceAtLeast(200.dp)
                 Column(
-                    modifier = Modifier.fillMaxSize()
-                        .padding(top = innerPadding.calculateTopPadding())
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // 盤を少しでも大きくするため、画面の端との余白は狭くする
                     BoardArea(
-                        vm, Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                        vm, Modifier.widthIn(max = boardMaxWidth).padding(horizontal = 6.dp, vertical = 8.dp),
                         onMenu = { showMenu = true }, onEditName = { editingName = it },
                     )
                     Column(modifier = Modifier.padding(8.dp)) { PvCards(vm) }
@@ -284,25 +285,6 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
 
         editingName?.let { PlayerNameDialog(vm, it) { editingName = null } }
 
-        // エンジン準備完了の通知。クリック系の Modifier を付けないのでタッチは下の画面にそのまま届く
-        LaunchedEffect(vm.engineReadyToast) {
-            if (vm.engineReadyToast != null) {
-                delay(2500)
-                vm.engineReadyToast = null
-            }
-        }
-        AnimatedVisibility(
-            visible = vm.engineReadyToast != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = with(density) { bottomBarHeightPx.toDp() } + 8.dp)
-        ) {
-            var shownName by remember { mutableStateOf("") }
-            vm.engineReadyToast?.let { shownName = it }
-            EngineReadyToast(shownName)
-        }
 
         // Gemini アプリのように、左から画面全体にせり出すメニュー。右上の × か左へのスワイプで閉じる
         AnimatedVisibility(
@@ -612,7 +594,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
     )
 }
 
-/** 盤と、その上に重ねるエンジンの読み込み中・エラーの表示 */
+/** 盤と、その上に重ねるエンジンの起動失敗の表示 */
 @Composable
 private fun Board(vm: GameViewModel, modifier: Modifier) {
     val game = vm.game
@@ -636,11 +618,8 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             placement = vm.settings.placement,
             ghostColor = if (vm.canPlay) game.toPlay else null,
         )
+        // 読み込み中は bottomBar のボタン (「準備中」) で分かるので、盤には起動に失敗したときだけ出す
         when (val s = vm.engineStatus) {
-            is EngineStatus.Loading -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                Text(stringResource(R.string.engine_loading), style = MaterialTheme.typography.bodyLarge)
-            }
             is EngineStatus.Error -> Text(
                 stringResource(R.string.engine_error, s.message),
                 color = MaterialTheme.colorScheme.error,
@@ -692,7 +671,7 @@ private fun PlayerNameDialog(vm: GameViewModel, stone: Stone, onDismiss: () -> U
 
 /** 読み筋カード: 初手と、読んだ先の形勢 (あなたから見た勝率・目数) */
 @Composable
-private fun PvCards(vm: GameViewModel) {
+private fun PvCards(vm: GameViewModel, compact: Boolean = false) {
     val (_, analysis) = vm.shownAnalysis ?: return
     val viewer = vm.humanColor ?: vm.shownAnalysis?.first?.game?.toPlay ?: Stone.BLACK
     val label = if (vm.humanColor != null) R.string.evaluation_format else
@@ -713,6 +692,7 @@ private fun PvCards(vm: GameViewModel) {
                 String.format(Locale.US, "%+.1f", lead),
             ),
             selected = vm.selectedPvRank == rank,
+            compact = compact,
         ) { vm.playPv(rank) }
     }
 }
@@ -939,25 +919,6 @@ private fun sliderToThinkTime(pos: Float): Long {
     val t = minThinkTimeMs * Math.pow(maxThinkTimeMs.toDouble() / minThinkTimeMs, pos.coerceIn(0f, 1f).toDouble())
     // 0.01秒単位に丸める
     return (Math.round(t / 10.0) * 10).coerceIn(minThinkTimeMs, maxThinkTimeMs)
-}
-
-/** エンジン準備完了のポップアップ本体 (ShogiGUI の EngineReadyToast)。Surface は背後へのタッチを遮るため、Box + background で描画する */
-@Composable
-fun EngineReadyToast(engineName: String) {
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 32.dp)
-            .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.4f)),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = stringResource(R.string.engine_ready_toast, engineName),
-            color = MaterialTheme.colorScheme.inverseOnSurface,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-        )
-    }
 }
 
 // Gemini アプリ風のメニューアイコン（短い2本線）

@@ -52,7 +52,10 @@ fun getPvColor(rank: Int): Color {
  * タップすると読み筋が盤上に番号付きで並ぶ
  */
 @Composable
-fun PvInfoCard(rank: Int, mover: Stone, firstMove: String, evaluation: String, selected: Boolean, onTap: () -> Unit) {
+fun PvInfoCard(
+    rank: Int, mover: Stone, firstMove: String, evaluation: String, selected: Boolean,
+    compact: Boolean = false, onTap: () -> Unit,
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -62,11 +65,7 @@ fun PvInfoCard(rank: Int, mover: Stone, firstMove: String, evaluation: String, s
             containerColor = getPvColor(rank)
         )
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        val move: @Composable () -> Unit = {
             StoneIcon(mover, Modifier.size(18.dp))
             Text(
                 text = firstMove,
@@ -74,11 +73,31 @@ fun PvInfoCard(rank: Int, mover: Stone, firstMove: String, evaluation: String, s
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Bold,
                 modifier = Modifier.widthIn(min = 56.dp)
             )
+        }
+        val eval: @Composable () -> Unit = {
             Text(
                 text = evaluation,
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (selected) FontWeight.Bold else null
             )
+        }
+        if (compact) {
+            // 横長の画面の右の列は狭いので、初手の下に形勢を書く
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    move()
+                }
+                eval()
+            }
+        } else {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                move()
+                eval()
+            }
         }
     }
 }

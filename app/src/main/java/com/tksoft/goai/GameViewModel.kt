@@ -111,8 +111,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     var message by mutableStateOf<String?>(null)
     var engineName by mutableStateOf("")
         private set
-    /** エンジン準備完了の通知 (表示し終えたら UI 側で null にする) */
-    var engineReadyToast by mutableStateOf<String?>(null)
 
     /** 解析結果とその局面。読み筋カードと盤上の候補手に使う */
     var analysis by mutableStateOf<Analysis?>(null)
@@ -185,7 +183,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             engineGame = null
             engineName = "KataGo ${version.text} (${model.displayName})"
             engineStatus = EngineStatus.Ready
-            engineReadyToast = engineName
             true
         } catch (e: Exception) {
             Log.e("GoAI", "engine start failed", e)
