@@ -252,14 +252,14 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                         MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
                         Board(vm, Modifier.width(boardWidth))
                         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            PlayerSection(vm, top = true) { editingName = it }
+                            PlayerSection(vm, top = true, alignStart = true) { editingName = it }
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                             ) {
                                 PvCards(vm)
                                 PvReplayNote(vm)
                             }
-                            PlayerSection(vm, top = false) { editingName = it }
+                            PlayerSection(vm, top = false, alignStart = true) { editingName = it }
                         }
                     }
                 }
@@ -577,12 +577,12 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
 @Composable
 private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> Unit, onEditName: (Stone) -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
-        PlayerSection(vm, top = true, onEditName)
+        PlayerSection(vm, top = true, onEditName = onEditName)
         MenuButton(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 4.dp), onClick = onMenu)
     }
     Board(vm, boardModifier.fillMaxWidth())
     PvReplayNote(vm)
-    PlayerSection(vm, top = false, onEditName)
+    PlayerSection(vm, top = false, onEditName = onEditName)
 }
 
 /**
@@ -590,7 +590,7 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> 
  * 上には AI の思考中の表示、下には対局の結果を添える
  */
 @Composable
-private fun PlayerSection(vm: GameViewModel, top: Boolean, onEditName: (Stone) -> Unit) {
+private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean = false, onEditName: (Stone) -> Unit) {
     val game = vm.game
     val bottom = vm.humanColor ?: Stone.BLACK
     val stone = if (top) bottom.opponent else bottom
@@ -608,6 +608,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, onEditName: (Stone) -
             else -> ""
         },
         onNameClick = { onEditName(stone) },
+        alignStart = alignStart,
     )
 }
 

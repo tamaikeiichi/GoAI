@@ -88,11 +88,13 @@ fun PvInfoCard(rank: Int, mover: Stone, firstMove: String, evaluation: String, s
 fun PlayerStatusSection(
     name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "",
     onNameClick: () -> Unit = {},
+    alignStart: Boolean = false,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        // 上側の対局者も右寄せにする（左上にメニューボタンを置くため）
-        horizontalAlignment = Alignment.End
+        // 縦長の画面では上側の対局者も右寄せにする（左上にメニューボタンを置くため）。
+        // 横長の画面ではメニューボタンが別の列にあるので、どちらも左寄せにする
+        horizontalAlignment = if (alignStart) Alignment.Start else Alignment.End
     ) {
         // 名前をタップすると編集できる (ShogiGUI と同じ)
         Row(
@@ -397,6 +399,17 @@ private fun KifuTreeView(
         fun trackColor(node: GoNode) = if (isActive(node)) activeTrackColor else inactiveTrackColor
         val cursorIdx = layout.indexOf[currentNode]
         val cut = thumbW / 2 + thumbGap // つまみの左右はトラックを切り欠く
+
+        // 背景: 各行の上半分 (黒有利の側) をやや薄いグレー、下半分 (白有利の側) をやや濃いグレーにする。
+        // 最初の行の上と最後の行の下は、グラフの端まで塗る
+        for (r in 0 until layout.rowCount) {
+            val y = offsetY + r * rowPx
+            val top = if (r == 0) 0f else y - rowPx / 2
+            val bottom = if (r == layout.rowCount - 1) size.height else y + rowPx / 2
+            if (bottom < 0f || top > size.height) continue
+            drawRect(graphUpperBgColor, Offset(0f, top), androidx.compose.ui.geometry.Size(size.width, y - top))
+            drawRect(graphLowerBgColor, Offset(0f, y), androidx.compose.ui.geometry.Size(size.width, bottom - y))
+        }
 
         // トラック: 未到達側を先に、到達側を上に描く。
         // 線は端を切りっぱなしにし、各ドットの位置に円を置いて角丸・継ぎ目にする（つまみの位置は除く）
