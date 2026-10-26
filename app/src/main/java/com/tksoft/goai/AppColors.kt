@@ -3,14 +3,14 @@ package com.tksoft.goai
 import androidx.compose.ui.graphics.Color
 
 // 形勢グラフの棒の色 (ShogiGUI の senteBarColor / goteBarColor に相当)。
-// グラフの背景は薄い青 (graphBackgroundColor) なので、白はほぼ白にしても見分けられる。
+// グラフの背景 (graphBackgroundColor) は濃い山吹色なので、白はほぼ白にしても見分けられる。
 // グラフ側で、中央のグレー (barMidColor) から上の端の黒・下の端の白へのグラデーションにする
 val blackBarColor = Color(0xFF111111)
 val whiteBarColor = Color(0xFFFFFFFF)
 val barMidColor = Color(0xFF888888)
 
-// 形勢グラフの背景 (薄い青)
-val graphBackgroundColor = Color(0xFFDDE8F4)
+// 形勢グラフの背景 (濃い山吹色)
+val graphBackgroundColor = Color(0xFFD18B00)
 
 // 形勢グラフに重ねる目数の折れ線の色と、振り切れる目数
 val scoreLineColor = Color(0xFFD32F2F)
