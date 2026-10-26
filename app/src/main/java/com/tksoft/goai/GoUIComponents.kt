@@ -360,8 +360,6 @@ private fun KifuTreeView(
     // M3 Slider のデフォルト配色 (SliderDefaults.colors)
     val activeTrackColor = MaterialTheme.colorScheme.primary
     val inactiveTrackColor = MaterialTheme.colorScheme.secondaryContainer
-    val activeTickColor = MaterialTheme.colorScheme.onPrimary
-    val inactiveTickColor = MaterialTheme.colorScheme.onSecondaryContainer
     val thumbColor = sliderThumbColor
     val containerColor = graphBackgroundColor
     // 現在の手順上で、現在の手までの手 (= Slider のアクティブ側)
@@ -405,13 +403,12 @@ private fun KifuTreeView(
         if (!initialized) return@Canvas
         val colPx = colPx()
         val rowPx = rowPx()
-        // Slider の寸法 (SliderTokens) を基に、トラックは細め (6dp)。つまみ 4x24dp・つまみとトラックの隙間 6dp・目盛り径 3dp。
+        // Slider の寸法 (SliderTokens) を基に、各手のドットは径 6dp。つまみ 4x24dp・つまみとドットの隙間 6dp。
         // 縦に縮小したときは行間に収まるよう縮める
         val trackH = minOf(6.dp.toPx(), rowPx * 0.25f)
         val thumbW = 4.dp.toPx()
         val thumbH = minOf(20.dp.toPx(), rowPx * 0.5f)
         val thumbGap = 6.dp.toPx()
-        val tickR = minOf(1.5f.dp.toPx(), trackH / 4f)
         val left = -trackH * 2; val right = size.width + trackH * 2
         fun pos(i: Int) = Offset(offsetX + layout.col[i] * colPx, offsetY + layout.row[i] * rowPx)
         fun isActive(node: GoNode) = (pathIndex[node] ?: Int.MAX_VALUE) <= currentPathIdx
@@ -419,13 +416,13 @@ private fun KifuTreeView(
         val cursorIdx = layout.indexOf[currentNode]
         val cut = thumbW / 2 + thumbGap // つまみの左右はトラックを切り欠く
 
-        // トラック: 未到達側を先に、到達側を上に描く。
-        // 線は端を切りっぱなしにし、各ドットの位置に円を置いて角丸・継ぎ目にする（つまみの位置は除く）
+        // トラック: 横線は引かず、各手の位置のドットだけにする。未到達側を先に、到達側を上に描く。
+        // 分岐して別の行へ下りるところだけ、どこから分かれたか分かるよう細い斜めの線で結ぶ
         for (pass in 0..1) {
             val wantActive = pass == 1
             for (i in layout.nodes.indices) {
                 val p = layout.parentIdx[i]
-                if (p < 0) continue
+                if (p < 0 || layout.row[p] == layout.row[i]) continue
                 val node = layout.nodes[i]
                 if (isActive(node) != wantActive) continue
                 var a = pos(p); var b = pos(i)
@@ -437,10 +434,8 @@ private fun KifuTreeView(
                 if (p == cursorIdx) { a += dir * cut; l -= cut }
                 if (i == cursorIdx) { b -= dir * cut; l -= cut }
                 if (l <= 0f) continue
-                // 分岐して別の行へ下りる斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
-                val diagonal = layout.row[p] != layout.row[i]
-                if (diagonal) drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
-                else drawLine(trackColor(node), a, b, strokeWidth = trackH, cap = StrokeCap.Butt)
+                // 斜めの線はごく細く、現在の手の左右によらず常にアクティブ側の濃い色
+                drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
             }
             for (i in layout.nodes.indices) {
                 if (i == cursorIdx) continue
@@ -450,21 +445,9 @@ private fun KifuTreeView(
                 if (isActive(colorNode) != wantActive) continue
                 val c = pos(i)
                 if (c.x < left || c.x > right) continue
-                // トラック端の丸みは、つまみに接していない側だけ
+                // つまみに重なるドットは描かない
                 val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
                 if (!nearThumb) drawCircle(trackColor(colorNode), radius = trackH / 2, center = c)
-            }
-        }
-
-        // 目盛り（各手）。密集して見分けられないときは省く
-        if (colPx >= tickR * 4) {
-            for (i in layout.nodes.indices) {
-                if (i == cursorIdx) continue
-                val c = pos(i)
-                if (c.x < left || c.x > right) continue
-                val colorNode = if (layout.parentIdx[i] < 0) layout.nodes[i].continuationChild() ?: layout.nodes[i] else layout.nodes[i]
-                if (cursorIdx != null && (pos(cursorIdx) - c).getDistance() < cut) continue
-                drawCircle(if (isActive(colorNode)) activeTickColor else inactiveTickColor, radius = tickR, center = c)
             }
         }
 
