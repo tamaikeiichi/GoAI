@@ -368,11 +368,11 @@ private fun KifuTreeView(
     val pathIndex = remember(currentPath) { HashMap<GoNode, Int>().also { m -> currentPath.forEachIndexed { i, n -> m[n] = i } } }
     val currentPathIdx = pathIndex[currentNode] ?: -1
 
-    // M3 Expressive: トーナルなコンテナ + やや控えめな角丸
+    // グラデーションの背景 + 小さめの角丸
     Canvas(
         modifier = modifier
             .height(viewHeight)
-            .clip(MaterialTheme.shapes.large)
+            .clip(RoundedCornerShape(8.dp))
             .background(containerBrush)
             .onSizeChanged { viewSize = it }
             .pointerInput(root) {
@@ -475,7 +475,7 @@ private fun KifuTreeView(
                 drawLine(activeTrackColor, a, b, strokeWidth = 1.dp.toPx(), cap = StrokeCap.Round)
             }
         }
-        // ドットは現在の手の左右によらず同じ色で、塗りを細い線で縁取る
+        // ドットは現在の手の左右によらず同じ色で、塗りを細い線で縁取る。棒グラフや目数の線が透けるよう半透明にする
         val dotOutline = 1.dp.toPx()
         for (i in layout.nodes.indices) {
             if (i == cursorIdx) continue
@@ -484,8 +484,8 @@ private fun KifuTreeView(
             // つまみに重なるドットは描かない
             val nearThumb = cursorIdx?.let { (pos(it) - c).getDistance() < cut + trackH / 2 } ?: false
             if (nearThumb) continue
-            drawCircle(sliderDotColor, radius = trackH / 2, center = c)
-            drawCircle(sliderDotOutlineColor, radius = trackH / 2 - dotOutline / 2, center = c, style = Stroke(width = dotOutline))
+            drawCircle(sliderDotColor, radius = trackH / 2, center = c, alpha = TRACK_DOT_ALPHA)
+            drawCircle(sliderDotOutlineColor, radius = trackH / 2 - dotOutline / 2, center = c, alpha = TRACK_DOT_ALPHA, style = Stroke(width = dotOutline))
         }
 
         // 現在の手: Slider のつまみ（縦長の角丸バー）
@@ -509,6 +509,9 @@ private fun KifuTreeView(
         }
     }
 }
+
+// 形勢グラフのスライダーのドットの不透明度
+private const val TRACK_DOT_ALPHA = 0.6f
 
 @Composable
 fun Modifier.repeatingClickable(enabled: Boolean = true, initialDelay: Long = 500L, delay: Long = 100L, onClick: () -> Unit): Modifier {

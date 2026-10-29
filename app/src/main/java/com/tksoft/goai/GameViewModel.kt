@@ -30,8 +30,6 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
     CHINESE("chinese", 7.0),
 }
 
-/** 解析は候補手の探索数の合計がこれを超えたら自動で止める (電池の消耗を抑える) */
-private const val ANALYSIS_MAX_VISITS = 3000
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
 /**
@@ -473,6 +471,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** 解析ボタンの解析: 時間や探索数では止めず、もう一度解析ボタンを押すまで続ける */
     private fun startAnalysis() {
         analyzing = true
         val node = currentNode
@@ -487,10 +486,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                 analysis = a
                 a.best?.let { node.setEvaluation(it) }
-                if (a.candidates.sumOf { it.visits } >= ANALYSIS_MAX_VISITS) {
-                    analyzing = false
-                    gtp.stopAnalysis()
-                }
             }
         }
     }
