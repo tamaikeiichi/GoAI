@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -47,6 +48,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -175,6 +178,11 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var editingName by rememberSaveable { mutableStateOf<Stone?>(null) }
+    // 横長レイアウトで盤を最大化しているか (bottomBar と読み筋カードを隠し、盤の上に1行だけ置く)
+    var maximized by rememberSaveable { mutableStateOf(false) }
+    val isWide = LocalConfiguration.current.screenWidthDp >= 840
+    val showMaximized = maximized && isWide
+    BackHandler(enabled = showMaximized) { maximized = false }
     val coroutineScope = rememberCoroutineScope()
     var kifuIoMessage by remember { mutableStateOf<String?>(null) }
     val exportKifuLauncher = rememberLauncherForActivityResult(
@@ -214,7 +222,7 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
-                Surface(
+                if (!showMaximized) Surface(
                     color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -231,8 +239,34 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 }
             }
         ) { innerPadding ->
-            val isWide = LocalConfiguration.current.screenWidthDp >= 840
-            if (isWide) {
+            if (showMaximized) {
+                // 最大化: 1行目にメニュー・両対局者 (名前とアゲハマ)・元に戻すボタン、その下に盤を残りの高さいっぱいに置く
+                BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(8.dp)) {
+                    val headerHeight = 48.dp
+                    val gap = 8.dp
+                    val boardWidth = minOf(maxWidth, (maxHeight - headerHeight - gap) / BOARD_CELL_ASPECT).coerceAtLeast(0.dp)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(gap)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(headerHeight),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            MenuButton { showMenu = true }
+                            PlayerChip(vm, Stone.BLACK) { editingName = it }
+                            PlayerChip(vm, Stone.WHITE) { editingName = it }
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(onClick = { maximized = false }) {
+                                Icon(Icons.Filled.FullscreenExit, stringResource(R.string.restore_board))
+                            }
+                        }
+                        Board(vm, Modifier.width(boardWidth))
+                    }
+                }
+            } else if (isWide) {
                 // 盤をなるべく大きくするため、左からメニューボタン・盤・(対局者名・読み筋カード・対局者名) の3列にする
                 BoxWithConstraints(
                     modifier = Modifier.fillMaxSize()
@@ -250,7 +284,15 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                         MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
                         Board(vm, Modifier.width(boardWidth))
                         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            PlayerSection(vm, top = true, alignStart = true) { editingName = it }
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    PlayerSection(vm, top = true, alignStart = true) { editingName = it }
+                                }
+                                // 右上の最大化ボタン
+                                IconButton(onClick = { maximized = true }) {
+                                    Icon(Icons.Filled.Fullscreen, stringResource(R.string.maximize_board))
+                                }
+                            }
                             Column(
                                 modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                             ) {
@@ -592,6 +634,32 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         onNameClick = { onEditName(stone) },
         alignStart = alignStart,
     )
+}
+
+/** 最大化したときの1行目に並べる対局者 (石・名前・アゲハマ)。名前をタップすると編集できる */
+@Composable
+private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> Unit) {
+    val game = vm.game
+    val isActive = vm.result == null && game.toPlay == stone
+    Row(
+        modifier = Modifier.clickable { onEditName(stone) }.padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StoneIcon(stone, Modifier.size(18.dp))
+        Text(
+            text = if (stone == Stone.BLACK) vm.blackName else vm.whiteName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = if (isActive) FontWeight.Bold else null,
+            maxLines = 1
+        )
+        Text(
+            text = stringResource(R.string.captures_one, if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
 }
 
 /** 盤と、その上に重ねるエンジンの起動失敗の表示 */

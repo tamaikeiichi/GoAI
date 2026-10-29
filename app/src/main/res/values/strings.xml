@@ -28,6 +28,8 @@
     <string name="nav_previous">Previous</string>
     <string name="nav_next">Next</string>
     <string name="menu_content_description">Menu</string>
+    <string name="maximize_board">Maximize the board</string>
+    <string name="restore_board">Restore the layout</string>
     <string name="close">Close</string>
     <string name="menu_share_sgf">Share game record (SGF)</string>
     <string name="menu_copy_sgf">Copy game record (SGF)</string>

@@ -27,6 +27,8 @@
     <string name="nav_previous">前へ</string>
     <string name="nav_next">次へ</string>
     <string name="menu_content_description">メニュー</string>
+    <string name="maximize_board">盤を最大化</string>
+    <string name="restore_board">元に戻す</string>
     <string name="close">閉じる</string>
     <string name="menu_share_sgf">棋譜を共有 (SGF)</string>
     <string name="menu_copy_sgf">棋譜をコピー (SGF)</string>
