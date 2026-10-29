@@ -30,6 +30,8 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
     CHINESE("chinese", 7.0),
 }
 
+/** 解析ボタンの解析は、もう一度押さなくてもこの時間で止める (押し忘れたときの電池の消耗を抑える) */
+private const val ANALYSIS_MAX_TIME_MS = 10 * 60 * 1000L
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
 /**
@@ -471,7 +473,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 解析ボタンの解析: 時間や探索数では止めず、もう一度解析ボタンを押すまで続ける */
+    /** 解析ボタンの解析: もう一度解析ボタンを押すまで続ける (最長 ANALYSIS_MAX_TIME_MS) */
     private fun startAnalysis() {
         analyzing = true
         val node = currentNode
@@ -482,11 +484,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (!analyzing || currentNode !== node) return@launch
             analysisNode = node
             analysis = null
+            val timer = launch {
+                delay(ANALYSIS_MAX_TIME_MS)
+                if (analyzing && analysisNode === node) stopAnalysis()
+            }
             gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 50 maxmoves $ANALYSIS_MAX_MOVES") { line ->
                 val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                 analysis = a
                 a.best?.let { node.setEvaluation(it) }
             }
+            timer.cancel()
         }
     }
 
