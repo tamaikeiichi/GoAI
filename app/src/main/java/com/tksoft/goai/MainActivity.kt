@@ -47,6 +47,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -259,6 +261,15 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                             PlayerChip(vm, Stone.BLACK) { editingName = it }
                             PlayerChip(vm, Stone.WHITE) { editingName = it }
                             Spacer(modifier = Modifier.weight(1f))
+                            // bottomBar の形勢グラフの左右にある矢印と同じ、前の手・次の手 (長押しで連続)
+                            val path = vm.currentPath
+                            val index = path.indexOf(vm.currentNode).coerceAtLeast(0)
+                            NavButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.nav_previous), enabled = index > 0) {
+                                vm.currentPath.let { p -> p.indexOf(vm.currentNode).takeIf { it > 0 }?.let { vm.goTo(p[it - 1]) } }
+                            }
+                            NavButton(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.nav_next), enabled = index < path.size - 1) {
+                                vm.currentPath.let { p -> p.indexOf(vm.currentNode).takeIf { it in 0 until p.size - 1 }?.let { vm.goTo(p[it + 1]) } }
+                            }
                             IconButton(onClick = { maximized = false }) {
                                 Icon(Icons.Filled.FullscreenExit, stringResource(R.string.restore_board))
                             }
@@ -634,6 +645,21 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         onNameClick = { onEditName(stone) },
         alignStart = alignStart,
     )
+}
+
+/** 最大化したときの1行目の、前の手・次の手のボタン (形勢グラフの左右の矢印と同じ見た目) */
+@Composable
+private fun NavButton(icon: ImageVector, description: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .repeatingClickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+    }
 }
 
 /** 最大化したときの1行目に並べる対局者 (石・名前・アゲハマ)。名前をタップすると編集できる */
