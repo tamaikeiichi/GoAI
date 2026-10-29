@@ -1,23 +1,82 @@
 Privacy Policy for GoAI
-Last Updated: October 25, 2026
+Last Updated: October 30, 2026
+
+(日本語は英語の後にあります)
 
 GoAI (hereinafter referred to as "the App") is an Android application developed by Keiichi Tamai (hereinafter referred to as "the Developer").
 
 1. Information Collection and Use
-The App does not collect, store, or transmit any personally identifiable information. The App does not use the Internet: the Go AI (KataGo) and its neural network run entirely on the User's device.
+The App does not collect, store on any server, or transmit any personally identifiable information. The App does not use the Internet and does not request the Internet permission: the Go AI (KataGo) and its neural networks run entirely on the User's device.
 
-Game Settings: The User's game settings (color, AI level, rules, komi, handicap) are stored locally on the device.
+The following data is stored only on the User's device, in the App's private storage:
+- Settings: board size, rules, komi, handicap, think time, stone placement method, and similar options.
+- Game records: the games the User plays or loads, including the player names the User enters and the analysis results (win rate and score), kept as the game history.
 
-Game Records (SGF): Game records are sent to other apps only when the User explicitly taps the share button.
+The Developer cannot access any of this data.
 
-2. Permissions
+2. Data the User Chooses to Send Outside the App
+Data leaves the App only when the User explicitly does one of the following:
+- Share: the game record (SGF) is passed to the app the User selects in the Android share sheet.
+- Copy / Load: the game record is copied to or read from the clipboard.
+- Export / Import: all game records are written to, or read from, a file at a location the User selects.
+What happens to the data after that is governed by the app or service the User chose.
+
+3. Android Backup
+If the User has enabled Android backup on the device, Android may include the App's settings and game records in the User's own device backup (for example, Google's backup service). This backup is managed by Android and the backup service under the User's account; the Developer cannot access it.
+
+4. Permissions
 The App does not request any special permissions.
 
-3. Third-Party Services
-The App does not use advertising networks, analytics tools, or SDKs that track user behavior.
+5. Third-Party Services
+The App does not use advertising networks, analytics tools, crash reporting services, or SDKs that track user behavior. No data is shared with third parties.
 
-4. Changes to This Privacy Policy
-The Developer may update this Privacy Policy from time to time. Changes are effective immediately after they are posted on this page or within the App.
+6. Children's Privacy
+The App does not collect any personal information from anyone, including children.
 
-5. Contact Us
-If you have any questions about this Privacy Policy, please contact the Developer via the contact information provided on the Google Play Store listing.
+7. Changes to This Privacy Policy
+The Developer may update this Privacy Policy from time to time. Changes are effective immediately after they are posted on this page.
+
+8. Contact Us
+If you have any questions about this Privacy Policy, please contact the Developer via the contact information provided on the Google Play Store listing, or open an issue at https://github.com/tamaikeiichi/GoAI/issues.
+
+
+----------------------------------------------------------------
+
+GoAI プライバシーポリシー
+最終更新日: 2026年10月30日
+
+GoAI（以下「本アプリ」）は、Keiichi Tamai（以下「開発者」）が開発した Android アプリです。
+
+1. 情報の収集と利用
+本アプリは、個人を特定できる情報を収集せず、サーバーに保存も送信もしません。本アプリはインターネットを使わず、インターネットの権限も要求しません。囲碁 AI（KataGo）とそのニューラルネットワークは、すべて利用者の端末の中で動きます。
+
+次のデータは、利用者の端末内の本アプリ専用の領域にだけ保存されます。
+- 設定: 盤の大きさ、ルール、コミ、置き石、思考時間、石の置き方など
+- 棋譜: 利用者が対局・読み込みした棋譜（利用者が入力した対局者名、解析結果の勝率・目数を含む）。過去の棋譜として保存されます
+
+開発者は、これらのデータにアクセスできません。
+
+2. 利用者の操作でアプリの外に出るデータ
+データは、利用者が次の操作をしたときだけ本アプリの外に出ます。
+- 共有: 棋譜（SGF）を、Android の共有画面で利用者が選んだアプリに渡します
+- コピー・読み込み: 棋譜をクリップボードにコピーし、またはクリップボードから読み込みます
+- エクスポート・インポート: すべての棋譜を、利用者が選んだ場所のファイルに書き出し、またはそこから読み込みます
+その後のデータの扱いは、利用者が選んだアプリやサービスによります。
+
+3. Android のバックアップ
+利用者が端末で Android のバックアップを有効にしている場合、Android は本アプリの設定と棋譜を、利用者自身の端末のバックアップ（Google のバックアップなど）に含めることがあります。このバックアップは Android とバックアップサービスが利用者のアカウントで管理するもので、開発者はアクセスできません。
+
+4. 権限
+本アプリは、特別な権限を要求しません。
+
+5. 第三者のサービス
+本アプリは、広告、アクセス解析、クラッシュレポート、利用者の行動を追跡する SDK を使いません。第三者とデータを共有しません。
+
+6. 子どものプライバシー
+本アプリは、子どもを含め、誰からも個人情報を収集しません。
+
+7. このプライバシーポリシーの変更
+開発者は、このプライバシーポリシーを変更することがあります。変更は、このページに掲載した時点で有効になります。
+
+8. お問い合わせ
+このプライバシーポリシーについてのお問い合わせは、Google Play ストアの掲載ページにある連絡先、または https://github.com/tamaikeiichi/GoAI/issues までお願いします。
