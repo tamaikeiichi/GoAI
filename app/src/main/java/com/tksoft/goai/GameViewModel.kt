@@ -418,6 +418,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 5 maxmoves $ANALYSIS_MAX_MOVES") { line ->
                             val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                             analysis = a
+                            node.analysis = a
                             a.best?.let { node.setEvaluation(it); evaluated.complete(Unit) }
                         }
                     }
@@ -491,6 +492,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 50 maxmoves $ANALYSIS_MAX_MOVES") { line ->
                 val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                 analysis = a
+                node.analysis = a
                 a.best?.let { node.setEvaluation(it) }
             }
             timer.cancel()
@@ -537,8 +539,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 if (a != null && n === pn) return pn to a
                 return pinnedAnalysis?.let { pn to it }
             }
-            if (a == null || n == null) return null
-            return if (n === currentNode) n to a else null
+            if (a != null && n === currentNode) return n to a
+            // 解析中でなければ、以前にこの局面を解析した結果を出す
+            return currentNode.analysis?.let { currentNode to it }
         }
 
     /**

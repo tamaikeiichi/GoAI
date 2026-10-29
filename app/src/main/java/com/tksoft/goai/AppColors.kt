@@ -12,7 +12,7 @@ val graphBackgroundTopColor = Color(0xFFF4F1DE)
 val graphBackgroundBottomColor = Color(0xFF24171A)
 
 // 形勢グラフのスライダーの、現在の手を示す縦棒 (つまみ) の色と、その外周の線の色
-val sliderThumbColor = Color(0xFF6D1020)
+val sliderThumbColor = Color(0xFFFF4D4D)
 val sliderThumbOutlineColor = Color(0xFFF4F1DE)
 // 形勢グラフのスライダーの、各手の位置を示すドットの塗りと外周の線の色
 val sliderDotColor = Color(0xFF24171A)

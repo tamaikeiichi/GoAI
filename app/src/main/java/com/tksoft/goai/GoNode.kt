@@ -23,6 +23,8 @@ class GoNode(
     // 解析で得た形勢 (黒番から見た値。null = 未解析)
     var winrateBlack by mutableStateOf<Double?>(null)
     var scoreLeadBlack by mutableStateOf<Double?>(null)
+    /** この局面の最後の解析結果。戻ってきたときに読み筋カードと盤上の候補手を出す (再解析で上書き。保存はしない) */
+    var analysis by mutableStateOf<Analysis?>(null)
     /** この局面で対局が終わった (投了・終局) ときの結果 */
     var result by mutableStateOf<GameResult?>(null)
 
