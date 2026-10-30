@@ -17,6 +17,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -339,6 +341,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
 
         editingName?.let { PlayerNameDialog(vm, it) { editingName = null } }
 
+        ThinkingOverlay(vm)
+
 
         // Gemini アプリのように、左から画面全体にせり出すメニュー。右上の × か左へのスワイプで閉じる
         AnimatedVisibility(
@@ -445,13 +449,7 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     vm.judgementPopup?.let { r ->
         AlertDialog(
             onDismissRequest = vm::dismissJudgementPopup,
-            title = { Text(stringResource(R.string.menu_judge)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(resultText(r.code), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.judge_note), style = MaterialTheme.typography.bodyMedium)
-                }
-            },
+            text = { Text(resultText(r.code), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
             confirmButton = { TextButton(onClick = vm::dismissJudgementPopup) { Text("OK") } },
         )
     }
@@ -655,15 +653,56 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         stone = stone,
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
         isActive = turn == stone,
-        gameResult = when {
-            !top -> result?.let { resultText(it.code) } ?: ""
-            vm.thinking && game.isEndedByPasses -> stringResource(R.string.counting)
-            vm.thinking -> stringResource(R.string.ai_thinking)
-            else -> ""
-        },
+        gameResult = if (!top) result?.let { resultText(it.code) } ?: "" else "",
         onNameClick = { onEditName(stone) },
         alignStart = alignStart,
     )
+}
+
+/**
+ * AI が考えている・地を数えているあいだ、画面の上に重ねるポップアップ (キャンセルできる)。
+ * 別のウィンドウ (Dialog) にすると、KataGo が CPU を使い切っている間にウィンドウの切り替えが遅れて
+ * 「応答していません」になることがあるので、同じ画面の上に重ねて描く。すぐ終わる読みではちらつかないよう、少し待ってから出す
+ */
+@Composable
+private fun ThinkingOverlay(vm: GameViewModel) {
+    var show by remember { mutableStateOf(false) }
+    LaunchedEffect(vm.thinking) {
+        show = false
+        if (vm.thinking) {
+            delay(THINKING_POPUP_DELAY_MS)
+            show = true
+        }
+    }
+    if (!show || !vm.thinking) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.32f))
+            // 下の盤やボタンには触れさせない
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.padding(32.dp).widthIn(min = 280.dp)
+        ) {
+            Column(modifier = Modifier.padding(start = 24.dp, top = 24.dp, end = 12.dp, bottom = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                    Text(
+                        stringResource(if (vm.scoring) R.string.counting else R.string.ai_thinking),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                TextButton(
+                    onClick = { show = false; vm.cancelThinking() },
+                    modifier = Modifier.align(Alignment.End).padding(top = 16.dp)
+                ) { Text(stringResource(android.R.string.cancel)) }
+            }
+        }
+    }
 }
 
 /** 最大化したときの1行目の、前の手・次の手のボタン (形勢グラフの左右の矢印と同じ見た目) */
@@ -1019,6 +1058,9 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
 
 /** 設定で選べるコミの上限 (目) */
 private const val MAX_KOMI = 10f
+
+/** 「AI が考えています」のポップアップを出すまでの待ち時間 [ms]。これより早く終わる読みでは出さない */
+private const val THINKING_POPUP_DELAY_MS = 400L
 
 // 設定の思考時間（AI の1手と「この局面から全て解析」の1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
 // ShogiGUI と同じく対数目盛り。範囲は 0.2秒〜5秒 (MIN_THINK_TIME_MS)

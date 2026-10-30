@@ -77,5 +77,4 @@
     <string name="settings_think_time_label">Think time for auto analysis</string>
     <string name="settings_think_time_unit">s</string>
     <string name="menu_judge">Score the position</string>
-    <string name="judge_note">KataGo judged which stones are dead and counted the territory as if the game ended here. The small squares on the board show the territory.</string>
 </resources>

@@ -103,6 +103,30 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** AI が手を考えている・整地している */
     var thinking by mutableStateOf(false)
         private set
+    /** thinking のうち、AI の手ではなく地を数えている (2連続パスの終局・終局判定) とき */
+    var scoring by mutableStateOf(false)
+        private set
+    /** 考えている途中で「キャンセル」が押された。終わった考えの結果は使わない */
+    @Volatile private var cancelRequested = false
+
+    /** 「AI が考えています」のポップアップのキャンセル: 対局を中止し、読み (止められるもの) を止める */
+    fun cancelThinking() {
+        if (!thinking || cancelRequested) return
+        cancelRequested = true
+        humanColor = null
+        gtp.stopAnalysis()
+    }
+
+    private fun beginThinking(isScoring: Boolean) {
+        cancelRequested = false
+        scoring = isScoring
+        thinking = true
+    }
+
+    private fun endThinking() {
+        thinking = false
+        scoring = false
+    }
     /** 解析 (kata-analyze) 中 */
     var analyzing by mutableStateOf(false)
         private set
@@ -590,16 +614,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun engineMove() {
         val node = currentNode
         if (node.result != null) return
-        thinking = true
+        beginThinking(isScoring = false)
         try {
             syncEngine(node.game)
             val color = node.game.toPlay
             var played: String? = null
             var last: Analysis? = null
-            val resp = gtp.send("kata-genmove_analyze ${color.gtp} interval 50") { line ->
+            // キャンセルで止められるよう、kata-analyze と同じく途中で "stop" を送れる形で送る
+            val resp = gtp.analyze("kata-genmove_analyze ${color.gtp} interval 50") { line ->
                 if (line.startsWith("play ")) played = line.removePrefix("play ").trim()
                 else AnalysisParser.parse(line, node.game.size)?.let { last = it }
             }
+            // 考えている間にキャンセル・「対局中止」されたら、その手は打たない
+            if (cancelRequested || humanColor == null) return
             val best = last?.best
             best?.let { node.setEvaluation(it) }
             val moveText = played
@@ -613,8 +640,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 saveKifu()
                 return
             }
-            // 考えている間に「対局中止」されたら、その手は打たない
-            if (humanColor == null) return
             val move = GtpCoord.fromGtp(moveText, node.game.size)
             val next = move?.let { node.childFor(it) }
             if (next == null) {
@@ -628,20 +653,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             saveKifu()
             if (next.game.isEndedByPasses) finishByScoring()
         } finally {
-            thinking = false
+            endThinking()
         }
     }
 
     /** 2連続パスで終局: KataGo に死活を判定させて結果を出す */
     private suspend fun finishByScoring() {
         val node = currentNode
-        thinking = true
+        beginThinking(isScoring = true)
         try {
-            node.result = scorePosition(node)
+            // キャンセルしたら結果は付けない (続きを打てる)
+            scorePosition(node)?.let { node.result = it }
             humanColor = null
             saveKifu()
         } finally {
-            thinking = false
+            endThinking()
         }
     }
 
@@ -652,30 +678,35 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val node = currentNode
         viewModelScope.launch {
             stopAnalysisAndWait()
-            thinking = true
+            beginThinking(isScoring = true)
             try {
                 // 自動解析の思考時間が短いと地の見積もりが粗いので、判定のときは少し長く読ませる
                 val seconds = maxOf(settings.analysisTimeMs, JUDGE_MIN_TIME_MS) / 1000.0
                 gtp.send("kata-set-param maxTime $seconds")
                 val r = scorePosition(node)
                 gtp.send("kata-set-param maxTime ${settings.analysisTimeMs / 1000.0}")
-                judgementNode = node
-                judgement = r
-                judgementPopup = r
+                if (r != null) {
+                    judgementNode = node
+                    judgement = r
+                    judgementPopup = r
+                }
             } finally {
-                thinking = false
+                endThinking()
             }
         }
     }
 
-    /** node の局面を KataGo に数えさせる。死に石は地の見積もり (ownership) から「相手の地の中にある石」として求める */
-    private suspend fun scorePosition(node: GoNode): GameResult {
+    /**
+     * node の局面を KataGo に数えさせる。死に石は地の見積もり (ownership) から「相手の地の中にある石」として求める。
+     * 途中でキャンセルされたら null
+     */
+    private suspend fun scorePosition(node: GoNode): GameResult? {
         syncEngine(node.game)
         val score = gtp.send("final_score")
         // 死に石は final_status_list dead でも取れるが、そちらも内部で探索するので
         // 地の表示用の ownership から「相手の地の中にある石」として求める
         var ownership: List<Double>? = null
-        gtp.send("kata-search_analyze ${node.game.toPlay.gtp} interval 1000 ownership true") { line ->
+        gtp.analyze("kata-search_analyze ${node.game.toPlay.gtp} interval 1000 ownership true") { line ->
             AnalysisParser.parse(line, node.game.size)?.ownershipBlack?.let { ownership = it }
         }
         val board = node.game.board
@@ -690,6 +721,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.toSet()
         } ?: emptySet()
+        if (cancelRequested) return null
         return GameResult(score.text.trim().ifEmpty { "?" }, deadStones, ownership)
     }
 

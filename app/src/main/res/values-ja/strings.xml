@@ -76,5 +76,4 @@
     <string name="settings_think_time_label">自動解析時の思考時間</string>
     <string name="settings_think_time_unit">秒</string>
     <string name="menu_judge">終局判定</string>
-    <string name="judge_note">この局面で終局したとして、KataGo が死活を判定し地を数えた結果です。盤上の小さな四角が地を示します。</string>
 </resources>
