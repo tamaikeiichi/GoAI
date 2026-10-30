@@ -66,6 +66,7 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.Upload
@@ -385,6 +386,10 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     showMenu = false
                     vm.pass()
                 }
+                MenuItem(Icons.Outlined.Calculate, text = { Text(stringResource(R.string.menu_judge)) }) {
+                    showMenu = false
+                    vm.judge()
+                }
                 if (vm.isPlayingGame) {
                     MenuItem(Icons.Outlined.Flag, text = { Text(stringResource(R.string.resign)) }) {
                         showMenu = false
@@ -434,6 +439,20 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 showHistory = false
                 vm.openHistory(id, record)
             },
+        )
+    }
+
+    vm.judgementPopup?.let { r ->
+        AlertDialog(
+            onDismissRequest = vm::dismissJudgementPopup,
+            title = { Text(stringResource(R.string.menu_judge)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(resultText(r.code), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.judge_note), style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = { TextButton(onClick = vm::dismissJudgementPopup) { Text("OK") } },
         )
     }
 
@@ -707,7 +726,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
-            result = vm.result,
+            result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
             placement = vm.settings.placement,
             ghostColor = if (vm.canPlay) game.toPlay else null,

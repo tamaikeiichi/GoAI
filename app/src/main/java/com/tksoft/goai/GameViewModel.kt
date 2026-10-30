@@ -32,6 +32,7 @@ enum class Rules(val gtp: String, val defaultKomi: Double) {
 
 /** 解析ボタンの解析は、もう一度押さなくてもこの時間で止める (押し忘れたときの電池の消耗を抑える) */
 private const val ANALYSIS_MAX_TIME_MS = 10 * 60 * 1000L
+private const val JUDGE_MIN_TIME_MS = 2000L
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
 /**
@@ -197,6 +198,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val result: GameResult? get() = currentNode.result
+
+    /** メニューの「終局判定」の結果。判定した局面にいる間だけ盤上に地と死に石を出す (棋譜には残さない) */
+    private var judgement by mutableStateOf<GameResult?>(null)
+    private var judgementNode by mutableStateOf<GoNode?>(null)
+
+    /** 終局判定の結果のポップアップ。閉じても、その局面にいる間は盤上の地と死に石は残す */
+    var judgementPopup by mutableStateOf<GameResult?>(null)
+        private set
+
+    fun dismissJudgementPopup() {
+        judgementPopup = null
+    }
+
+    /** 盤に出す結果: 終局判定をした局面ではその結果、そうでなければ終局した局面の結果 */
+    val shownResult: GameResult?
+        get() = judgement?.takeIf { judgementNode === currentNode } ?: result
 
     val isPlayingGame: Boolean get() = humanColor != null
 
@@ -620,32 +637,60 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val node = currentNode
         thinking = true
         try {
-            syncEngine(node.game)
-            val score = gtp.send("final_score")
-            // 死に石は final_status_list dead でも取れるが、そちらも内部で探索するので
-            // 地の表示用の ownership から「相手の地の中にある石」として求める
-            var ownership: List<Double>? = null
-            gtp.send("kata-search_analyze ${node.game.toPlay.gtp} interval 1000 ownership true") { line ->
-                AnalysisParser.parse(line, node.game.size)?.ownershipBlack?.let { ownership = it }
-            }
-            val board = node.game.board
-            val size = node.game.size
-            val deadStones = ownership?.let { o ->
-                (0 until size).flatMap { y -> (0 until size).map { x -> x to y } }.filter { (x, y) ->
-                    val v = o[y * size + x]
-                    when (board[x, y]) {
-                        Stone.BLACK -> v < -0.5
-                        Stone.WHITE -> v > 0.5
-                        Stone.EMPTY -> false
-                    }
-                }.toSet()
-            } ?: emptySet()
-            node.result = GameResult(score.text.trim().ifEmpty { "?" }, deadStones, ownership)
+            node.result = scorePosition(node)
             humanColor = null
             saveKifu()
         } finally {
             thinking = false
         }
+    }
+
+    /** メニューの「終局判定」: 今の局面で打ち終えたとして KataGo に死活を判定させ、結果をポップアップで出す */
+    fun judge() {
+        if (engineStatus != EngineStatus.Ready || thinking) return
+        if (autoAnalyzing) stopAutoAnalysis()
+        val node = currentNode
+        viewModelScope.launch {
+            stopAnalysisAndWait()
+            thinking = true
+            try {
+                // 自動解析の思考時間が短いと地の見積もりが粗いので、判定のときは少し長く読ませる
+                val seconds = maxOf(settings.analysisTimeMs, JUDGE_MIN_TIME_MS) / 1000.0
+                gtp.send("kata-set-param maxTime $seconds")
+                val r = scorePosition(node)
+                gtp.send("kata-set-param maxTime ${settings.analysisTimeMs / 1000.0}")
+                judgementNode = node
+                judgement = r
+                judgementPopup = r
+            } finally {
+                thinking = false
+            }
+        }
+    }
+
+    /** node の局面を KataGo に数えさせる。死に石は地の見積もり (ownership) から「相手の地の中にある石」として求める */
+    private suspend fun scorePosition(node: GoNode): GameResult {
+        syncEngine(node.game)
+        val score = gtp.send("final_score")
+        // 死に石は final_status_list dead でも取れるが、そちらも内部で探索するので
+        // 地の表示用の ownership から「相手の地の中にある石」として求める
+        var ownership: List<Double>? = null
+        gtp.send("kata-search_analyze ${node.game.toPlay.gtp} interval 1000 ownership true") { line ->
+            AnalysisParser.parse(line, node.game.size)?.ownershipBlack?.let { ownership = it }
+        }
+        val board = node.game.board
+        val size = node.game.size
+        val deadStones = ownership?.let { o ->
+            (0 until size).flatMap { y -> (0 until size).map { x -> x to y } }.filter { (x, y) ->
+                val v = o[y * size + x]
+                when (board[x, y]) {
+                    Stone.BLACK -> v < -0.5
+                    Stone.WHITE -> v > 0.5
+                    Stone.EMPTY -> false
+                }
+            }.toSet()
+        } ?: emptySet()
+        return GameResult(score.text.trim().ifEmpty { "?" }, deadStones, ownership)
     }
 
     /** エンジンの局面を target に合わせる。送ってある局面の続きなら残りの手だけ送る */
