@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- アダプティブアイコンの前景: 元の画像 (GA_icon_1) をそのまま 108dp いっぱいに置く -->
+<!-- アダプティブアイコンの前景: 元の画像 (GA_icon_2) をそのまま 108dp いっぱいに置く -->
 <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
     android:src="@drawable/ic_launcher_foreground_image"
     android:gravity="fill" />
