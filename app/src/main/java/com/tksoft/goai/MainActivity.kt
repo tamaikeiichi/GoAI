@@ -1063,7 +1063,7 @@ private const val MAX_KOMI = 10f
 private const val THINKING_POPUP_DELAY_MS = 400L
 
 // 設定の思考時間（AI の1手と「この局面から全て解析」の1手に使う時間 [ms]）とスライダー位置 (0..1) の対応。
-// ShogiGUI と同じく対数目盛り。範囲は 0.2秒〜5秒 (MIN_THINK_TIME_MS)
+// ShogiGUI と同じく対数目盛り。範囲は 0.1秒〜5秒 (MIN_THINK_TIME_MS)
 private const val minThinkTimeMs = MIN_THINK_TIME_MS
 private const val maxThinkTimeMs = MAX_THINK_TIME_MS
 private fun thinkTimeToSlider(ms: Long): Float {

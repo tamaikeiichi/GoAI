@@ -36,10 +36,10 @@ private const val JUDGE_MIN_TIME_MS = 2000L
 /** 読み筋カードに出す候補手の数 */
 private const val ANALYSIS_MAX_MOVES = 3
 /**
- * 思考時間の下限 [ms]。19路 (b10 のネット) をエミュレータで測ると、最初の結果は約 0.1 秒で出るが探索数が 2〜3 で、
- * 勝率が 2 秒考えたときと最大 5% ほど違った。0.2 秒 (探索数 6〜12) なら差は 2% 以内で形勢グラフに十分なので、これを下限にする
+ * 思考時間の下限 [ms]。探索数が少なく勝率・目数は粗くなるが、速さを優先して 0.1 秒にする。
+ * 思考時間内に最初の結果が出なくても、自動解析は最初の結果を待ってから次の手へ進む (FIRST_RESULT_TIMEOUT_MS)
  */
-const val MIN_THINK_TIME_MS = 200L
+const val MIN_THINK_TIME_MS = 100L
 /** 思考時間の上限 [ms] */
 const val MAX_THINK_TIME_MS = 5000L
 /** 「この局面から全て解析」で、思考時間を過ぎても最初の結果が出ないときに待つ上限 [ms] */
