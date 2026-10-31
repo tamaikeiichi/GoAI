@@ -32,8 +32,8 @@ Android Studio で開いてビルドするだけです。
 - KataGo のネットワークはリポジトリに含めず、ビルド時に `downloadKataGoModel` タスクが
   `app/src/main/assets/` にダウンロードします。
   - 9路盤: `kata9x9-b18c384nbt-20231025` (約 98MB, [katagotraining.org](https://katagotraining.org/extra_networks/))
-  - 13路・19路: `g170e-b10c128-s1141046784-d204142634` (約 14MB, [KataGo v1.3](https://github.com/lightvector/KataGo/releases/tag/v1.3))。
-    配布はテキスト形式だけで端末での読み込みが遅いので、ダウンロード後にバイナリ形式に変換する
+  - 13路・19路: `kata1-b18c384nbt-s9996604416-d4316597426` (約 98MB, [katagotraining.org](https://katagotraining.org/networks/))
+  - テキスト形式 (.txt.gz) だけで配布されているネットは、端末での読み込みが遅いのでダウンロード後にバイナリ形式に変換する
     (KataGo の `neuralnet/desc.cpp` に変換後の形式を読む `readBlockFloats` を追加している)
 - NDK (CMake 3.22.1) で `app/src/main/cpp` の KataGo をビルドします (arm64-v8a, x86_64)。
 
@@ -60,7 +60,7 @@ GoAI 自体は [MIT License](LICENSE) です。同梱しているサードパー
 |---|---|
 | KataGo v1.18.2 | MIT |
 | KataGo 9x9 network (kata9x9-b18c384nbt-20231025) | KataGo Neural Network License (MIT 相当) |
-| KataGo network g170e-b10c128 (13路・19路) | CC0 1.0 |
+| KataGo network kata1-b18c384nbt (13路・19路) | KataGo Neural Network License (MIT 相当) |
 | Eigen 3.4.0 | MPL 2.0 |
 | TCLAP, ghc::filesystem, half, nlohmann/json | MIT |
 | sha2.cpp (Aaron D. Gifford) | BSD-3-Clause |
