@@ -63,7 +63,7 @@ data class GameSettings(
      * このアプリは解析が主なので AI の強さは選ばせず、常に最善手を打たせて、強さは思考時間だけで変える
      */
     val analysisTimeMs: Long = 1000L,
-    val net: NetChoice = NetChoice.FAST,
+    val net: NetChoice = NetChoice.STRONG,
 )
 
 /** 置石の最大数。1子は置石なしで黒が先に打つ (定先) */
@@ -198,9 +198,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { configureEngine() }
     }
 
-    /** 盤の大きさに合うネットでエンジンを動かす。違うネットで動いていれば起動し直す */
-    private suspend fun ensureEngine(size: Int): Boolean {
-        val model = KataGoModel.forBoardSize(size, settings.net)
+    /** model のネットでエンジンを動かす。違うネットで動いていれば起動し直す */
+    private suspend fun ensureEngine(model: KataGoModel): Boolean {
         if (loadedModel == model && engineStatus == EngineStatus.Ready) return true
         engineStatus = EngineStatus.Loading
         return try {
@@ -260,11 +259,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         get() = engineStatus == EngineStatus.Ready && !thinking &&
             (humanColor == null || (result == null && game.toPlay == humanColor))
 
-    /** 表示中の棋譜の盤の大きさに合わせてエンジンを用意し、ルール・コミ・思考時間を送る */
-    private suspend fun configureEngine() = engineMutex.withLock {
+    /**
+     * 表示中の棋譜の盤の大きさと設定のネットワーク (自動解析中は速いネットワーク) でエンジンを用意し、
+     * ルール・コミ・思考時間を送る
+     */
+    private suspend fun configureEngine(
+        model: KataGoModel = KataGoModel.forBoardSize(game.size, settings.net),
+    ) = engineMutex.withLock {
         val s = settings
         val size = game.size
-        if (!ensureEngine(size)) return@withLock
+        if (!ensureEngine(model)) return@withLock
         engineGame = null
         gtp.send("boardsize $size")
         gtp.send("kata-set-rules ${s.rules.gtp}")
@@ -468,10 +472,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         analysisJob = viewModelScope.launch {
             prev?.join()
             var node = currentNode
+            // 強いネットワークは遅いので、自動解析の間は盤の大きさ・設定によらず速いネットワーク (読み込みは 0.5 秒ほど) に
+            // 切り替え、終わったら (中断したときも) 設定のネットワークに戻す (19路の b18 は読み込みに 2〜3 秒かかる)。
+            // 思考時間 0.1 秒で 1手あたり、19路は約0.9秒 → 約0.13秒、9路 (9路専用のネット) も約0.6秒 → 約0.13秒になる
+            val autoModel = KataGoModel.NET_FAST
+            val switched = autoModel != KataGoModel.forBoardSize(node.game.size, settings.net)
+            if (switched) configureEngine(autoModel)
             // 思考時間が来て探索を終えるとき、KataGo は各スレッドが始めてしまった NN の評価が終わるまで待つ。
             // 遅い端末では 4 スレッドだと 1.5 秒ほど余計にかかったので、自動解析の間は 1 スレッドで読む
-            gtp.send("kata-set-param numSearchThreads 1")
+            if (engineStatus == EngineStatus.Ready) gtp.send("kata-set-param numSearchThreads 1")
             try {
+                if (engineStatus != EngineStatus.Ready) return@launch
                 while (autoAnalyzing) {
                     currentNode = node
                     syncEngine(node.game)
@@ -508,11 +519,45 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     node = node.continuationChild() ?: break
                 }
             } finally {
-                gtp.send("kata-set-param numSearchThreads ${KataGoFiles.searchThreads}")
                 autoAnalyzing = false
                 analyzing = false
                 saveKifu()
+                // 戻すときはエンジンを起動し直すので、スレッド数も設定ファイルのもの (端末のコア数) に戻る
+                if (switched) configureEngine()
+                else gtp.send("kata-set-param numSearchThreads ${KataGoFiles.searchThreads}")
             }
+        }
+    }
+
+    // ホームに戻るなどで画面が見えなくなったときに止めた解析。画面に戻ったら再開する
+    private var pausedAnalysis = false
+    private var pausedAutoAnalysis = false
+
+    /**
+     * 画面が見えなくなったとき (onStop): 解析・自動解析を止める。見えないところで CPU を使い続けて、
+     * 他のアプリを遅くしたり電池を減らしたりしないようにする。AI の1手や終局判定は短いので、そのまま終わらせる
+     */
+    fun onAppBackground() {
+        when {
+            autoAnalyzing -> { pausedAutoAnalysis = true; stopAutoAnalysis() }
+            analyzing -> { pausedAnalysis = true; stopAnalysis() }
+        }
+    }
+
+    /** 画面に戻ったとき (onStart): onAppBackground で止めた解析を、今の局面から再開する */
+    fun onAppForeground() {
+        val auto = pausedAutoAnalysis
+        val single = pausedAnalysis
+        pausedAutoAnalysis = false
+        pausedAnalysis = false
+        if (!auto && !single) return
+        viewModelScope.launch {
+            // 止めた探索が終わる (自動解析ならネットワークを戻し終える) のを待ってから始める
+            analysisJob?.join()
+            if (engineStatus != EngineStatus.Ready || thinking || analyzing || autoAnalyzing) return@launch
+            if (auto) startAutoAnalysis()
+            // 読み筋を盤上に出している間は、どの局面を解析していたかが変わってしまうので再開しない
+            else if (pinnedNode == null) startAnalysis()
         }
     }
 

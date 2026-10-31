@@ -1,5 +1,9 @@
 package com.tksoft.goai
 
+import java.nio.ByteBuffer
+import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
+
 /**
  * SGF (囲碁の棋譜) を読み込んで樹形図にする。変化図は分岐になる。
  * 9路盤で、最初に置かれている石が黒だけ (置碁) のものに対応する
@@ -15,6 +19,21 @@ object SgfParser {
         val date: String?,
         val timeSettings: TimeSettings?,
     )
+
+    /**
+     * ファイルの中身を文字列にする。CA[...] に文字コードが書かれていればそれを使い、
+     * 無ければ UTF-8 として読めるか試して、だめなら日本の棋譜に多い Shift_JIS とみなす
+     */
+    fun decode(bytes: ByteArray): String {
+        // CA の値は ASCII なので、とりあえず ISO-8859-1 で読んで探す
+        val ca = Regex("""CA\s*\[([^\]]*)\]""").find(String(bytes, Charsets.ISO_8859_1))?.groupValues?.get(1)?.trim()
+        ca?.let { name -> runCatching { Charset.forName(name) }.getOrNull() }?.let { return String(bytes, it) }
+        val utf8 = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        return runCatching { utf8.decode(ByteBuffer.wrap(bytes)).toString() }
+            .getOrElse { String(bytes, Charset.forName("Shift_JIS")) }
+    }
 
     private class SgfNode(val props: Map<String, List<String>>, val children: MutableList<SgfNode> = mutableListOf())
 

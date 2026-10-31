@@ -88,4 +88,5 @@
     <string name="net">Network</string>
     <string name="net_strong">Strong</string>
     <string name="net_fast">Fast</string>
+    <string name="shared_not_sgf">The shared content has no game record (SGF)</string>
 </resources>

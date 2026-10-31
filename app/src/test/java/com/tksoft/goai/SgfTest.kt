@@ -42,4 +42,15 @@ class SgfTest {
         assertEquals(2, back.root.children[0].children.size)
         assertNotNull(back.root.children[0].children[1].move)
     }
+
+    @Test
+    fun decodesCharsets() {
+        val sgf = "(;SZ[9]PB[黒田]PW[白石];B[ee])"
+        assertEquals(sgf, SgfParser.decode(sgf.toByteArray(Charsets.UTF_8)))
+        // CA が無く UTF-8 として読めなければ Shift_JIS
+        assertEquals(sgf, SgfParser.decode(sgf.toByteArray(charset("Shift_JIS"))))
+        // CA があればそれに従う
+        val euc = "(;CA[EUC-JP]SZ[9]PB[黒田];B[ee])"
+        assertEquals(euc, SgfParser.decode(euc.toByteArray(charset("EUC-JP"))))
+    }
 }

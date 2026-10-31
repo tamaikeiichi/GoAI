@@ -24,6 +24,26 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 他のアプリやブラウザの「共有」で、棋譜 (SGF のテキストやファイル) を受け取る。
+                 SGF の決まった MIME タイプが無く、ファイルアプリは application/octet-stream で送ることが多いので、それも受ける -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/x-go-sgf" />
+                <data android:mimeType="application/sgf" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <!-- ファイルアプリやブラウザのダウンロードから SGF ファイルを開く -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/x-go-sgf" />
+                <data android:mimeType="application/sgf" />
+            </intent-filter>
         </activity>
     </application>
 

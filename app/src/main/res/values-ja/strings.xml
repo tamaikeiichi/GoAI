@@ -87,4 +87,5 @@
     <string name="net">ネットワーク</string>
     <string name="net_strong">強い</string>
     <string name="net_fast">速い</string>
+    <string name="shared_not_sgf">共有された内容に棋譜 (SGF) がありません</string>
 </resources>

@@ -107,7 +107,7 @@ enum class KataGoModel(val asset: String, val file: String, val displayName: Str
 }
 
 /**
- * 設定の「ネットワーク」 (既定は速い)。強い = 9路盤は 9路専用、ほかの盤は kata1-b18c384nbt。
+ * 設定の「ネットワーク」 (既定は強い)。「この局面から全て解析」は、設定によらず速いネットで読む。強い = 9路盤は 9路専用、ほかの盤は kata1-b18c384nbt。
  * 速い = どの盤も g170e-b10c128 (NN の計算が 1/10 ほどで、自動解析や AI の手が速いが、大石の死活を読み違えることがある)
  */
 enum class NetChoice { STRONG, FAST }

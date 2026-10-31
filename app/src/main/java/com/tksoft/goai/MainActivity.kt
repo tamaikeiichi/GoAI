@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -127,6 +128,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.core.content.IntentCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -145,7 +148,14 @@ import kotlin.math.roundToInt
 class MainActivity : ComponentActivity() {
     private val vm: GameViewModel by viewModels()
 
+    override fun onStart() {
+        super.onStart()
+        vm.onAppForeground()
+    }
+
     override fun onStop() {
+        // ホームに戻ったときなどは解析を止める (画面に戻ったら onStart で再開する)
+        vm.onAppBackground()
         vm.saveKifu()
         super.onStop()
     }
@@ -162,6 +172,8 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightStatusBars = !isNight
             isAppearanceLightNavigationBars = !isNight
         }
+        // 「共有」や SGF ファイルを開く操作で起動されたとき (画面の回転などで作り直したときは読み直さない)
+        if (savedInstanceState == null) receiveKifu(intent)
         setContent {
             GoAITheme {
                 var showAbout by rememberSaveable { mutableStateOf(false) }
@@ -172,6 +184,35 @@ class MainActivity : ComponentActivity() {
                     GameScreen(onAbout = { showAbout = true })
                 }
             }
+        }
+    }
+
+    // launchMode が singleTask なので、起動中に「共有」されたときはここに来る
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receiveKifu(intent)
+    }
+
+    /** 他のアプリの「共有」(SGF のテキストかファイル) や、SGF ファイルを開く操作で受け取った棋譜を読み込む */
+    private fun receiveKifu(intent: Intent) {
+        val uri: Uri? = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            else -> return
+        }
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+        lifecycleScope.launch {
+            val text = uri?.let { u ->
+                withContext(Dispatchers.IO) {
+                    runCatching { contentResolver.openInputStream(u)?.use { SgfParser.decode(it.readBytes()) } }.getOrNull()
+                }
+            } ?: sharedText
+            // ブラウザでページを「共有」すると URL だけが来る (ダウンロードはしない)
+            if (text == null || !text.contains("(;")) {
+                vm.message = getString(R.string.shared_not_sgf)
+                return@launch
+            }
+            vm.loadSgf(text)
         }
     }
 }
