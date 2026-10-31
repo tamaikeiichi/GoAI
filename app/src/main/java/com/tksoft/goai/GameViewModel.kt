@@ -2,13 +2,13 @@ package com.tksoft.goai
 
 import android.app.Application
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -16,18 +16,24 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 /** 対応している盤の大きさ */
-val BOARD_SIZES = listOf(9, 13, 19)
+val BOARD_SIZES = listOf(5, 7, 9, 13, 19, 21)
 
-enum class Rules(val gtp: String, val defaultKomi: Double) {
+enum class Rules(val gtp: String, private val standardKomi: Double) {
     JAPANESE("japanese", 6.5),
-    CHINESE("chinese", 7.0),
+    CHINESE("chinese", 7.0);
+
+    /** 置石なしのときのこみ。7路盤は 8目、5路盤は 0目 (ルールによらない) */
+    fun defaultKomi(boardSize: Int) = when (boardSize) {
+        5 -> 0.0
+        7 -> 8.0
+        else -> standardKomi
+    }
 }
 
 /** 解析ボタンの解析は、もう一度押さなくてもこの時間で止める (押し忘れたときの電池の消耗を抑える) */
@@ -37,12 +43,12 @@ private const val JUDGE_MIN_TIME_MS = 2000L
 private const val ANALYSIS_MAX_MOVES = 3
 /**
  * 思考時間の下限 [ms]。探索数が少なく勝率・目数は粗くなるが、速さを優先して 0.1 秒にする。
- * 思考時間内に最初の結果が出なくても、自動解析は最初の結果を待ってから次の手へ進む (FIRST_RESULT_TIMEOUT_MS)
+ * 端末が遅くて思考時間内に形勢が付かなくても、自動解析は形勢が付くまで探索してから次の手へ進む (FIRST_RESULT_TIMEOUT_MS)
  */
 const val MIN_THINK_TIME_MS = 100L
 /** 思考時間の上限 [ms] */
 const val MAX_THINK_TIME_MS = 5000L
-/** 「この局面から全て解析」で、思考時間を過ぎても最初の結果が出ないときに待つ上限 [ms] */
+/** 「この局面から全て解析」で、思考時間を過ぎても形勢が付かないときに探索を続ける上限 [ms] */
 private const val FIRST_RESULT_TIMEOUT_MS = 10_000L
 
 data class GameSettings(
@@ -57,10 +63,14 @@ data class GameSettings(
      * このアプリは解析が主なので AI の強さは選ばせず、常に最善手を打たせて、強さは思考時間だけで変える
      */
     val analysisTimeMs: Long = 1000L,
+    val net: NetChoice = NetChoice.FAST,
 )
 
 /** 置石の最大数。1子は置石なしで黒が先に打つ (定先) */
 const val MAX_HANDICAP = 9
+
+/** その盤で置ける置石の最大数。5路盤は隅の星と天元が同じ点になるので置石なし */
+fun maxHandicap(boardSize: Int) = if (boardSize < 7) 0 else MAX_HANDICAP
 
 /** 石の置き方 */
 enum class Placement {
@@ -168,6 +178,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     var whiteName by mutableStateOf(prefs.getString("white_name", null) ?: str(R.string.white))
         private set
     private var gameDate: String? = prefs.getString("game_date", null)
+    /** 読み込んだ棋譜の持ち時間 (残り時間・消費時間の表示に使う。無ければ null) */
+    var timeSettings by mutableStateOf<TimeSettings?>(null)
+        private set
     private var historyId: String? = prefs.getString("history_id", null)
 
     private fun str(id: Int, vararg args: Any) = getApplication<Application>().getString(id, *args)
@@ -176,6 +189,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // 前回表示していた棋譜を復元する
         prefs.getString("current_tree", null)?.let { saved ->
             runCatching { KifuJson.fromJson(JSONObject(saved)) }.getOrNull()?.let { r ->
+                timeSettings = r.timeSettings
                 var n = r.root
                 while (true) n = n.children.firstOrNull { !it.isPvBranch } ?: break
                 currentNode = n
@@ -186,7 +200,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 盤の大きさに合うネットでエンジンを動かす。違うネットで動いていれば起動し直す */
     private suspend fun ensureEngine(size: Int): Boolean {
-        val model = KataGoModel.forBoardSize(size)
+        val model = KataGoModel.forBoardSize(size, settings.net)
         if (loadedModel == model && engineStatus == EngineStatus.Ready) return true
         engineStatus = EngineStatus.Loading
         return try {
@@ -263,7 +277,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         gtp.send("clear_cache")
     }
 
-    /** 設定 (盤の大きさ・思考時間・ルール・コミ・置石) を保存してエンジンに送る。盤の大きさを変えたらリセットする */
+    /** 設定 (盤の大きさ・思考時間・ルール・コミ・置石・ネット) を保存してエンジンに送る。盤の大きさを変えたらリセットする。
+     *  ネットを変えたら、configureEngine (ensureEngine) がエンジンを起動し直す */
     fun applySettings(newSettings: GameSettings) {
         val sizeChanged = newSettings.boardSize != game.size
         settings = newSettings.copy(humanColor = settings.humanColor)
@@ -293,6 +308,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // 次に打った手からは新しい棋譜として履歴に保存する
         historyId = null
         gameDate = null
+        timeSettings = null
         prefs.edit().remove("current_tree").remove("history_id").remove("game_date")
             .remove("black_name").remove("white_name").apply()
         viewModelScope.launch {
@@ -415,11 +431,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         saveKifu()
     }
 
-    /** ShogiGUI の解析ボタン: 対局中は対局中止、解析中は停止、それ以外は解析を始める */
+    /** 解析ボタン・メニューの「解析」: 解析中は停止、それ以外は解析を始める。対局中も対局を続けたまま解析できる */
     fun onAnalyzeButton() {
         when {
             autoAnalyzing -> stopAutoAnalysis()
-            isPlayingGame -> stopGame()
             analyzing -> stopAnalysis()
             engineStatus == EngineStatus.Ready && !thinking -> {
                 unpin()
@@ -428,9 +443,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 「この局面から全て解析」ボタン: 解析中なら止める */
+    /** 「この局面から全て解析」ボタン: 解析中なら止める。対局中 (メニューから) なら対局を中止してから解析する */
     fun onAutoAnalyzeButton() {
-        if (autoAnalyzing) stopAutoAnalysis() else startAutoAnalysis()
+        when {
+            autoAnalyzing -> stopAutoAnalysis()
+            thinking -> return
+            else -> {
+                stopGame()
+                startAutoAnalysis()
+            }
+        }
     }
 
     /**
@@ -446,31 +468,47 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         analysisJob = viewModelScope.launch {
             prev?.join()
             var node = currentNode
+            // 思考時間が来て探索を終えるとき、KataGo は各スレッドが始めてしまった NN の評価が終わるまで待つ。
+            // 遅い端末では 4 スレッドだと 1.5 秒ほど余計にかかったので、自動解析の間は 1 スレッドで読む
+            gtp.send("kata-set-param numSearchThreads 1")
             try {
                 while (autoAnalyzing) {
                     currentNode = node
                     syncEngine(node.game)
+                    val start = SystemClock.elapsedRealtime()
                     analysisNode = node
                     analysis = null
                     analyzing = true
-                    val evaluated = CompletableDeferred<Unit>()
-                    val search = launch {
-                        // interval の単位はセンチ秒。思考時間が短くても結果を取れるよう、0.05 秒ごとに報告させる
-                        gtp.analyze("kata-analyze ${node.game.toPlay.gtp} interval 5 maxmoves $ANALYSIS_MAX_MOVES") { line ->
+                    // 探索は KataGo が思考時間 (maxTime) で自分で終える。kata-analyze を "stop" で止めると、
+                    // 始めてしまった NN の評価が終わるまで待つことになり、遅い端末では思考時間より何秒も長くかかっていた。
+                    // 形勢は局面そのもの (ルート) の評価 (rootInfo) で付け、minmoves 1 で読み筋カードにも NN の第一候補を出す。
+                    // KataGo は時間切れでも少なくとも2回は探索してから止まるので、遅い端末で b18 のネットだと思考時間より長くかかる
+                    // (速く解析したいときは、設定の「ネットワーク」で「速い」を選ぶ)。
+                    // それでも形勢が付かなかったときは、付くまで探索を続ける (前の探索の木はそのまま使われる)
+                    var evaluated = false
+                    while (autoAnalyzing && !evaluated && SystemClock.elapsedRealtime() - start < FIRST_RESULT_TIMEOUT_MS) {
+                        // interval の単位はセンチ秒。探索中も 0.05 秒ごとに読み筋カードを更新する。終わるときにも必ず1回報告される
+                        gtp.analyze(
+                            "kata-search_analyze_cancellable ${node.game.toPlay.gtp} interval 5 " +
+                                "maxmoves $ANALYSIS_MAX_MOVES minmoves 1 rootInfo true"
+                        ) { line ->
                             val a = AnalysisParser.parse(line, node.game.size) ?: return@analyze
                             analysis = a
                             node.analysis = a
-                            a.best?.let { node.setEvaluation(it); evaluated.complete(Unit) }
+                            val root = a.root
+                            val best = a.best
+                            when {
+                                root != null -> node.setEvaluation(root.winrateBlack, root.scoreLeadBlack)
+                                best != null -> node.setEvaluation(best)
+                                else -> return@analyze
+                            }
+                            evaluated = true
                         }
                     }
-                    delay(settings.analysisTimeMs)
-                    // 端末が遅いなどで思考時間内に最初の結果が出なくても、形勢を付けてから次の手へ進むよう、最初の結果までは待つ
-                    withTimeoutOrNull(FIRST_RESULT_TIMEOUT_MS) { evaluated.await() }
-                    gtp.stopAnalysis()
-                    search.join()
                     node = node.continuationChild() ?: break
                 }
             } finally {
+                gtp.send("kata-set-param numSearchThreads ${KataGoFiles.searchThreads}")
                 autoAnalyzing = false
                 analyzing = false
                 saveKifu()
@@ -507,6 +545,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         blackName = loaded.blackName ?: str(R.string.black)
         whiteName = loaded.whiteName ?: str(R.string.white)
         gameDate = loaded.date
+        timeSettings = loaded.timeSettings
         historyId = null
         saveKifu()
         viewModelScope.launch {
@@ -757,7 +796,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         saveKifu()
     }
 
-    private fun record() = KifuRecord(currentNode.root, settings.komi, settings.rules, blackName, whiteName, gameDate)
+    private fun record() = KifuRecord(currentNode.root, settings.komi, settings.rules, blackName, whiteName, gameDate, timeSettings)
 
     fun toSgf(): String = Sgf.write(record())
 
@@ -799,6 +838,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         blackName = r.blackName.ifEmpty { str(R.string.black) }
         whiteName = r.whiteName.ifEmpty { str(R.string.white) }
         gameDate = r.gameDate
+        timeSettings = r.timeSettings
         historyId = id
         prefs.edit().putString("history_id", id).apply()
         saveKifu()
@@ -810,18 +850,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadSettings(): GameSettings {
         val d = GameSettings()
+        val boardSize = prefs.getInt("boardSize", d.boardSize).takeIf { it in BOARD_SIZES } ?: d.boardSize
         return GameSettings(
-            boardSize = prefs.getInt("boardSize", d.boardSize).takeIf { it in BOARD_SIZES } ?: d.boardSize,
+            boardSize = boardSize,
             humanColor = if (prefs.getString("humanColor", "B") == "W") Stone.WHITE else Stone.BLACK,
             rules = runCatching { Rules.valueOf(prefs.getString("rules", d.rules.name)!!) }.getOrDefault(d.rules),
             komi = prefs.getFloat("komi", d.komi.toFloat()).toDouble(),
-            handicap = prefs.getInt("handicap", d.handicap).coerceIn(0, MAX_HANDICAP),
+            handicap = prefs.getInt("handicap", d.handicap).coerceIn(0, maxHandicap(boardSize)),
             // 以前の版の「ドラッグで打つ」の設定 (dragToPlace) も引き継ぐ
             placement = prefs.getString("placement", null)
                 ?.let { runCatching { Placement.valueOf(it) }.getOrNull() }
                 ?: if (prefs.getBoolean("dragToPlace", false)) Placement.DRAG else d.placement,
             // 下限を上げる前の版で保存した短い思考時間 (0.05 秒など) は下限に合わせる
             analysisTimeMs = prefs.getLong("analysisTimeMs", d.analysisTimeMs).coerceIn(MIN_THINK_TIME_MS, MAX_THINK_TIME_MS),
+            net = prefs.getString("net", null)?.let { runCatching { NetChoice.valueOf(it) }.getOrNull() } ?: d.net,
         )
     }
 
@@ -834,6 +876,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .putInt("handicap", s.handicap)
             .putString("placement", s.placement.name)
             .putLong("analysisTimeMs", s.analysisTimeMs)
+            .putString("net", s.net.name)
             .apply()
     }
 }

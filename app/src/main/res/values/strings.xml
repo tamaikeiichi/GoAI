@@ -22,7 +22,7 @@
     <string name="handicap">Handicap</string>
     <string name="handicap_none">None</string>
     <string name="komi">Komi</string>
-    <string name="about_text">GoAI is a free, open source Go app (9x9, 13x13, 19x19). The AI is KataGo (https://github.com/lightvector/KataGo) running entirely on your device, with the official KataGo networks kata9x9-b18c384nbt-20231025 (9x9) and g170e-b10c128 (13x13, 19x19).\n\nSource code: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">GoAI is a free, open source Go app (5x5 to 21x21). The AI is KataGo (https://github.com/lightvector/KataGo) running entirely on your device, with official KataGo networks: with the "Strong" network setting, kata9x9-b18c384nbt-20231025 on 9x9 and kata1-b18c384nbt on other boards; with "Fast", g170e-b10c128 on every board.\n\nSource code: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">Captures: %1$d</string>
     <string name="move_counter">Move %1$d / %2$d</string>
     <string name="nav_previous">Previous</string>
@@ -77,4 +77,15 @@
     <string name="settings_think_time_label">Think time for auto analysis</string>
     <string name="settings_think_time_unit">s</string>
     <string name="menu_judge">Score the position</string>
+    <string name="action_end_game">End game</string>
+    <string name="action_stop_cpu_game">Stop CPU game</string>
+    <string name="menu_stop_analysis">Stop analysis</string>
+    <string name="menu_stop_analyze_all">Stop analyzing all</string>
+    <string name="menu_main_line">Back to main line</string>
+    <string name="time_left">%1$s left</string>
+    <string name="time_left_periods">%1$s left (%2$d periods)</string>
+    <string name="move_time"> (used %1$s)</string>
+    <string name="net">Network</string>
+    <string name="net_strong">Strong</string>
+    <string name="net_fast">Fast</string>
 </resources>

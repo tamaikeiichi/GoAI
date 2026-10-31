@@ -95,7 +95,7 @@ class Board private constructor(val size: Int, private val cells: Array<Stone>) 
 
 /** 盤上の点と GTP の座標 ("D5" など。I は使わず、行番号は下から数える) の変換 */
 object GtpCoord {
-    private const val LETTERS = "ABCDEFGHJKLMNOPQRST"
+    private const val LETTERS = "ABCDEFGHJKLMNOPQRSTUV"
 
     fun toGtp(move: Move, size: Int): String = when (move) {
         is Move.Pass -> "pass"

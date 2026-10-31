@@ -13,6 +13,7 @@ object SgfParser {
         val whiteName: String?,
         val result: String?,
         val date: String?,
+        val timeSettings: TimeSettings?,
     )
 
     private class SgfNode(val props: Map<String, List<String>>, val children: MutableList<SgfNode> = mutableListOf())
@@ -53,6 +54,10 @@ object SgfParser {
             whiteName = props["PW"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
             result = result,
             date = props["DT"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
+            timeSettings = TimeSettings(
+                mainTimeSec = props["TM"]?.firstOrNull()?.trim()?.toDoubleOrNull(),
+                overtime = props["OT"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
+            ).takeIf { it.mainTimeSec != null || it.overtime != null },
         )
     }
 
@@ -80,6 +85,10 @@ object SgfParser {
                 Move.Play(x, y)
             }
             node = node.childFor(move) ?: return
+            // 打った後の残り時間 (黒は BL・OB、白は WL・OW)
+            val (tl, pl) = if (color == Stone.BLACK) "BL" to "OB" else "WL" to "OW"
+            sgf.props[tl]?.firstOrNull()?.trim()?.toDoubleOrNull()?.let { node.timeLeft = it }
+            sgf.props[pl]?.firstOrNull()?.trim()?.toIntOrNull()?.let { node.periodsLeft = it }
         }
         sgf.children.forEach { addMoves(node, it) }
     }

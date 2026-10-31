@@ -109,6 +109,7 @@ fun PvInfoCard(
 @Composable
 fun PlayerStatusSection(
     name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "",
+    timeLeft: String? = null,
     onNameClick: () -> Unit = {},
     alignStart: Boolean = false,
 ) {
@@ -138,6 +139,15 @@ fun PlayerStatusSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
+        // 読み込んだ棋譜に時間が書かれていれば、この局面での残り時間
+        if (timeLeft != null) {
+            Text(
+                text = timeLeft,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
         if (gameResult.isNotEmpty()) {
             Text(
                 text = gameResult,
@@ -219,6 +229,7 @@ private suspend fun PointerInputScope.detectPinchGestures(onZoom: (zoom: Float) 
 fun KifuTreeSection(
     currentNode: GoNode,
     currentPath: List<GoNode>,
+    moveTime: String? = null,
     onNodeChange: (GoNode) -> Unit
 ) {
     val currentIndex = currentPath.indexOf(currentNode).coerceAtLeast(0)
@@ -234,7 +245,9 @@ fun KifuTreeSection(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = stringResource(R.string.move_counter, currentNode.moveCount, maxIndex),
+            // 読み込んだ棋譜に時間が書かれていれば、この手の消費時間も出す
+            text = stringResource(R.string.move_counter, currentNode.moveCount, maxIndex) +
+                (moveTime?.let { stringResource(R.string.move_time, it) } ?: ""),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

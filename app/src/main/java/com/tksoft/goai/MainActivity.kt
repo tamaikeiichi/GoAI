@@ -126,6 +126,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -237,7 +238,10 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                             .navigationBarsPadding()
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        KifuTreeSection(vm.currentNode, vm.currentPath) { vm.goTo(it) }
+                        KifuTreeSection(
+                            vm.currentNode, vm.currentPath,
+                            moveTime = KifuTime.consumed(vm.currentNode, vm.timeSettings)?.let { KifuTime.format(it) },
+                        ) { vm.goTo(it) }
                         Spacer(modifier = Modifier.height(8.dp))
                         BottomButtons(vm)
                     }
@@ -354,6 +358,29 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             BackHandler { showMenu = false }
             FullScreenMenu(onClose = { showMenu = false }) {
                 val ready = vm.engineStatus == EngineStatus.Ready && !vm.thinking
+                MenuItem(Icons.Outlined.Settings, text = { Text(stringResource(R.string.menu_settings)) }) {
+                    showMenu = false
+                    showSettings = true
+                }
+                // 解析・全て解析・本譜は bottomBar にもあるが、対局中は bottomBar から消えるので、メニューからいつでも使えるようにする
+                MenuItem(
+                    { Icon(painterResource(if (vm.analyzing && !vm.autoAnalyzing) R.drawable.stop_circle_24px else R.drawable.network_intelligence_24px), null) },
+                    text = { Text(stringResource(if (vm.analyzing && !vm.autoAnalyzing) R.string.menu_stop_analysis else R.string.action_analyze)) },
+                ) {
+                    showMenu = false
+                    vm.onAnalyzeButton()
+                }
+                MenuItem(
+                    { Icon(if (vm.autoAnalyzing) painterResource(R.drawable.stop_circle_24px) else rememberVectorPainter(Icons.Outlined.FastForward), null) },
+                    text = { Text(stringResource(if (vm.autoAnalyzing) R.string.menu_stop_analyze_all else R.string.action_analyze_all)) },
+                ) {
+                    showMenu = false
+                    vm.onAutoAnalyzeButton()
+                }
+                MenuItem({ Icon(painterResource(R.drawable.undo_24px), null) }, text = { Text(stringResource(R.string.menu_main_line)) }) {
+                    showMenu = false
+                    vm.goToMainLine()
+                }
                 MenuItem(Icons.Outlined.RestartAlt, text = { Text(stringResource(R.string.menu_reset)) }) {
                     showMenu = false
                     vm.reset()
@@ -399,10 +426,6 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                         showMenu = false
                         vm.resign()
                     }
-                }
-                MenuItem(Icons.Outlined.Settings, text = { Text(stringResource(R.string.menu_settings)) }) {
-                    showMenu = false
-                    showSettings = true
                 }
                 MenuItem(Icons.Outlined.History, text = { Text(stringResource(R.string.menu_history)) }) {
                     showMenu = false
@@ -654,6 +677,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
         isActive = turn == stone,
         gameResult = if (!top) result?.let { resultText(it.code) } ?: "" else "",
+        timeLeft = timeLeftText(vm, stone),
         onNameClick = { onEditName(stone) },
         alignStart = alignStart,
     )
@@ -720,7 +744,15 @@ private fun NavButton(icon: ImageVector, description: String, enabled: Boolean, 
     }
 }
 
-/** 最大化したときの1行目に並べる対局者 (石・名前・アゲハマ)。名前をタップすると編集できる */
+/** 読み込んだ棋譜に時間が書かれていれば、今の局面での color の残り時間 ("残り 1:23:45"・秒読みの回数) */
+@Composable
+private fun timeLeftText(vm: GameViewModel, color: Stone): String? {
+    val (sec, periods) = KifuTime.remaining(vm.currentNode, color, vm.timeSettings) ?: return null
+    val t = KifuTime.format(sec)
+    return if (periods != null) stringResource(R.string.time_left_periods, t, periods) else stringResource(R.string.time_left, t)
+}
+
+/** 最大化したときの1行目に並べる対局者 (石・名前・アゲハマ・残り時間)。名前をタップすると編集できる */
 @Composable
 private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> Unit) {
     val game = vm.game
@@ -743,6 +775,14 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
+        timeLeftText(vm, stone)?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -869,7 +909,30 @@ private fun BottomButtons(vm: GameViewModel) {
                 else vm.loadSgf(text)
             },
         )
-        val active = vm.isPlayingGame || (vm.analyzing && !vm.autoAnalyzing)
+        if (vm.isPlayingGame) {
+            // AI と対局中は、解析・全て解析・本譜の代わりにパス・終局 (終局判定)・CPU 対局の中止を置く。解析などはメニューから使える
+            BarButton(
+                icon = { Icon(Icons.Outlined.SkipNext, stringResource(R.string.pass)) },
+                label = stringResource(R.string.pass),
+                enabled = vm.canPlay,
+                onClick = vm::pass,
+            )
+            BarButton(
+                icon = { Icon(Icons.Outlined.Calculate, stringResource(R.string.action_end_game)) },
+                label = stringResource(R.string.action_end_game),
+                enabled = ready && !vm.thinking,
+                onClick = vm::judge,
+            )
+            // 対局中止はエンジンが考えている間でもできるようにする
+            BarButton(
+                icon = { Icon(painterResource(R.drawable.stop_circle_24px), stringResource(R.string.action_stop_cpu_game)) },
+                label = stringResource(R.string.action_stop_cpu_game),
+                enabled = true,
+                onClick = vm::stopGame,
+            )
+            return@Row
+        }
+        val active = vm.analyzing && !vm.autoAnalyzing
         BarButton(
             icon = {
                 Icon(
@@ -878,13 +941,11 @@ private fun BottomButtons(vm: GameViewModel) {
                 )
             },
             label = when {
-                vm.isPlayingGame -> stringResource(R.string.action_stop_game)
                 vm.analyzing -> stringResource(R.string.action_stop)
                 !ready -> stringResource(R.string.action_preparing)
                 else -> stringResource(R.string.action_analyze)
             },
-            // 対局中止はエンジンが考えている間でもできるようにする
-            enabled = vm.isPlayingGame || vm.analyzing || (ready && !vm.thinking),
+            enabled = vm.analyzing || (ready && !vm.thinking),
             highlighted = active,
             onClick = vm::onAnalyzeButton,
         )
@@ -894,7 +955,7 @@ private fun BottomButtons(vm: GameViewModel) {
                 else Icon(Icons.Outlined.FastForward, stringResource(R.string.action_analyze_all))
             },
             label = if (vm.autoAnalyzing) stringResource(R.string.action_stop) else stringResource(R.string.action_analyze_all),
-            enabled = vm.autoAnalyzing || (ready && !vm.thinking && !vm.isPlayingGame),
+            enabled = vm.autoAnalyzing || (ready && !vm.thinking),
             highlighted = vm.autoAnalyzing,
             onClick = vm::onAutoAnalyzeButton,
         )
@@ -959,8 +1020,22 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BOARD_SIZES.forEach { n ->
                         FilterChip(s.boardSize == n, {
-                            s = s.copy(boardSize = n)
+                            // こみはその盤の既定値にする。5路盤は置石を置けないので、置石も外す
+                            val h = s.handicap.coerceAtMost(maxHandicap(n))
+                            s = s.copy(boardSize = n, handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi(n))
                         }, { Text(stringResource(R.string.board_size_format, n)) })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                // ネットワーク: 強い (遅い) か、速い (弱い) か。変えるとエンジンを読み込み直す
+                Text(stringResource(R.string.net), style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NetChoice.entries.forEach { c ->
+                        val label = when (c) {
+                            NetChoice.STRONG -> R.string.net_strong
+                            NetChoice.FAST -> R.string.net_fast
+                        }
+                        FilterChip(s.net == c, { s = s.copy(net = c) }, { Text(stringResource(label)) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -981,30 +1056,33 @@ private fun SettingsDialog(initial: GameSettings, onDismiss: () -> Unit, onSave:
                     Rules.entries.forEach { r ->
                         val label = if (r == Rules.JAPANESE) R.string.rules_japanese else R.string.rules_chinese
                         FilterChip(s.rules == r, {
-                            s = s.copy(rules = r, komi = if (s.handicap > 0) 0.5 else r.defaultKomi)
+                            s = s.copy(rules = r, komi = if (s.handicap > 0) 0.5 else r.defaultKomi(s.boardSize))
                         }, { Text(stringResource(label)) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // 置石は 0〜9 子をスライダーで選ぶ (こみと同じく、値を大きく表示する)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(stringResource(R.string.handicap_next_reset), style = MaterialTheme.typography.labelLarge)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (s.handicap == 0) stringResource(R.string.handicap_none) else "${s.handicap}",
-                        style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
-                        color = MaterialTheme.colorScheme.primary
+                // 置石は 0〜9 子をスライダーで選ぶ (こみと同じく、値を大きく表示する)。5路盤は置石を置けないので出さない
+                val maxH = maxHandicap(s.boardSize)
+                if (maxH > 0) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(stringResource(R.string.handicap_next_reset), style = MaterialTheme.typography.labelLarge)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (s.handicap == 0) stringResource(R.string.handicap_none) else "${s.handicap}",
+                            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = s.handicap.toFloat(),
+                        onValueChange = {
+                            val h = it.roundToInt().coerceIn(0, maxH)
+                            if (h != s.handicap) s = s.copy(handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi(s.boardSize))
+                        },
+                        valueRange = 0f..maxH.toFloat(),
+                        steps = maxH - 1,
                     )
                 }
-                Slider(
-                    value = s.handicap.toFloat(),
-                    onValueChange = {
-                        val h = it.roundToInt().coerceIn(0, MAX_HANDICAP)
-                        if (h != s.handicap) s = s.copy(handicap = h, komi = if (h > 0) 0.5 else s.rules.defaultKomi)
-                    },
-                    valueRange = 0f..MAX_HANDICAP.toFloat(),
-                    steps = MAX_HANDICAP - 1,
-                )
                 Spacer(Modifier.height(8.dp))
                 // AI が1手に使う時間と、「この局面から全て解析」で1手あたりに使う時間（単発の解析は停止するまで考え続ける）。
                 // 短い時間ほど細かく選べるよう、スライダーは対数目盛り（倍になるごとに同じ距離）で連続的に動かし、

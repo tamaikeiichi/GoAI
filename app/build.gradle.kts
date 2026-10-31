@@ -67,9 +67,11 @@ android {
 // 大きくて GitHub に置けないので、リポジトリには含めずビルド時にダウンロードする (KataGoEngine.kt の KataGoModel)。
 // - kata9x9-b18c384nbt-20231025 (約98MB): 9路盤専用に追加学習された公式ネット
 //   (KataGo Neural Network License, MIT 相当) https://katagotraining.org/extra_networks/
-// - kata1-b18c384nbt-s9996604416-d4316597426 (約98MB): 13路・19路用の公式ネット (kata1 系, KataGo Neural Network License)
-//   https://katagotraining.org/networks/ 。以前の g170e-b10c128 (約14MB) は小さく古いため、
-//   大石の死活が絡む局面で勝敗を読み違えることがあったので入れ替えた
+// - kata1-b18c384nbt-s9996604416-d4316597426 (約98MB): 9路盤以外の公式ネット (kata1 系, KataGo Neural Network License)
+//   https://katagotraining.org/networks/ 。設定の「ネットワーク」で「強い」を選んだときに使う
+// - g170e-b10c128-s1141046784-d204142634 (約14MB): 小さな公式ネット (g170 系は CC0)
+//   https://github.com/lightvector/KataGo/releases/tag/v1.3 。設定の「ネットワーク」で「速い」(既定) を選んだとき、どの盤でも使う。
+//   b18 の 1/10 ほどの計算で済むが、大石の死活が絡む局面で勝敗を読み違えることがある
 // テキスト形式 (.txt.gz) しかないネットは、端末での読み込み (数値の文字列の解析) に数秒かかるので、
 // ビルド時にバイナリ形式に変換する (convertTextModel)
 // 値: assets のファイル名と、テキスト形式から変換するかどうか
@@ -78,6 +80,8 @@ val katagoModels = mapOf(
         to ("katago_model_9x9.bin.gz.dat" to false),
     "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
         to ("katago_model_b18.bin.gz.dat" to false),
+    "https://github.com/lightvector/KataGo/releases/download/v1.3/g170e-b10c128-s1141046784-d204142634.txt.gz"
+        to ("katago_model_b10.bin.gz.dat" to true),
 )
 val assetsDir = layout.projectDirectory.dir("src/main/assets")
 

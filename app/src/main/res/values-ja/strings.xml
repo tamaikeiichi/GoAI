@@ -21,7 +21,7 @@
     <string name="handicap">置石</string>
     <string name="handicap_none">なし</string>
     <string name="komi">コミ</string>
-    <string name="about_text">GoAI は無料・オープンソースの囲碁アプリ (9路・13路・19路)です。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワークは、9路盤では 9路盤専用の kata9x9-b18c384nbt-20231025、13路・19路では g170e-b10c128 (いずれも KataGo の公式ネット) です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">GoAI は無料・オープンソースの囲碁アプリ (5路〜21路)です。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワーク (いずれも KataGo の公式ネット) は、設定の「ネットワーク」が「強い」なら 9路盤では 9路盤専用の kata9x9-b18c384nbt-20231025、ほかの盤では kata1-b18c384nbt、「速い」ならどの盤も g170e-b10c128 です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">アゲハマ %1$d</string>
     <string name="move_counter">%1$d手目 / %2$d手</string>
     <string name="nav_previous">前へ</string>
@@ -70,10 +70,21 @@
     <string name="board_size_format">%1$d路</string>
     <string name="placement">石の置き方</string>
     <string name="placement_tap">シングルタップ</string>
-    <string name="placement_double_tap">ダブルタップ（1回目は石を薄く表示）</string>
-    <string name="placement_drag">ドラッグ（指の上に石を表示）</string>
+    <string name="placement_double_tap">ダブルタップ</string>
+    <string name="placement_drag">ドラッグ</string>
     <string name="action_analyze_all">この局面から全て解析</string>
     <string name="settings_think_time_label">自動解析時の思考時間</string>
     <string name="settings_think_time_unit">秒</string>
     <string name="menu_judge">終局判定</string>
+    <string name="action_end_game">終局</string>
+    <string name="action_stop_cpu_game">CPU対局を中止する</string>
+    <string name="menu_stop_analysis">解析を停止</string>
+    <string name="menu_stop_analyze_all">全て解析を停止</string>
+    <string name="menu_main_line">本譜に戻る</string>
+    <string name="time_left">残り %1$s</string>
+    <string name="time_left_periods">残り %1$s（秒読み %2$d回）</string>
+    <string name="move_time">（消費 %1$s）</string>
+    <string name="net">ネットワーク</string>
+    <string name="net_strong">強い</string>
+    <string name="net_fast">速い</string>
 </resources>

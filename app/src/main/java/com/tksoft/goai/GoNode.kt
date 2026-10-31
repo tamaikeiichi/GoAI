@@ -27,6 +27,9 @@ class GoNode(
     var analysis by mutableStateOf<Analysis?>(null)
     /** この局面で対局が終わった (投了・終局) ときの結果 */
     var result by mutableStateOf<GameResult?>(null)
+    /** この手を打った人の、打った後の残り時間 [秒] と秒読みの残り回数 (SGF の BL/WL と OB/OW。棋譜に無ければ null) */
+    var timeLeft: Double? = null
+    var periodsLeft: Int? = null
 
     // 樹形図で同じ行に続ける子。PV分岐は同じ候補順位のPVだけ、それ以外は最初の非PV子を続ける。
     // 待ったして打ち直した手や別の候補の読み筋は、新しい行（枝分かれ）になる
@@ -42,9 +45,11 @@ class GoNode(
         return GoNode(next, this, isPv, pvColor).also { children.add(it) }
     }
 
-    fun setEvaluation(c: Candidate) {
-        winrateBlack = c.winrateBlack
-        scoreLeadBlack = c.scoreLeadBlack
+    fun setEvaluation(c: Candidate) = setEvaluation(c.winrateBlack, c.scoreLeadBlack)
+
+    fun setEvaluation(winrateBlack: Double, scoreLeadBlack: Double) {
+        this.winrateBlack = winrateBlack
+        this.scoreLeadBlack = scoreLeadBlack
     }
 
     val root: GoNode get() = parent?.root ?: this

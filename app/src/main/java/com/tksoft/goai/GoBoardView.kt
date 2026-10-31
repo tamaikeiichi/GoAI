@@ -36,7 +36,7 @@ private val labelColor = Color(0xFF444444)
 private const val MARGIN = 1.1f
 /** 盤の端から座標の文字の中心までのマス数 */
 private const val LABEL_POS = 0.32f
-private const val COLUMN_LABELS = "ABCDEFGHJKLMNOPQRST"
+private const val COLUMN_LABELS = "ABCDEFGHJKLMNOPQRSTUV"
 /** 碁盤の目の縦横比。実物の碁盤 (目の幅 約 22mm, 高さ 約 23.7mm) と同じく少し縦長にする */
 const val BOARD_CELL_ASPECT = 1.07f
 
@@ -268,11 +268,14 @@ private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float) {
         drawLine(lineColor, Offset(cell * MARGIN, py), Offset(cell * last, py), strokeWidth = w)
         drawLine(lineColor, Offset(px, cellH * MARGIN), Offset(px, cellH * last), strokeWidth = w)
     }
-    // 星 (9路盤は4隅の三々の内側と天元)
+    // 星 (5路盤は天元だけ、7路盤と9路盤は4隅の三々と天元 / 4隅の三々の内側と天元)
     val stars = when (size) {
+        5 -> listOf(2 to 2)
+        7 -> listOf(2 to 2, 4 to 2, 2 to 4, 4 to 4, 3 to 3)
         9 -> listOf(2 to 2, 6 to 2, 2 to 6, 6 to 6, 4 to 4)
         13 -> listOf(3 to 3, 9 to 3, 3 to 9, 9 to 9, 6 to 6)
         19 -> listOf(3, 9, 15).flatMap { a -> listOf(3, 9, 15).map { b -> a to b } }
+        21 -> listOf(3, 10, 17).flatMap { a -> listOf(3, 10, 17).map { b -> a to b } }
         else -> emptyList()
     }
     stars.forEach { (x, y) ->

@@ -20,6 +20,7 @@ class KifuRecord(
     val blackName: String,
     val whiteName: String,
     val gameDate: String?,
+    val timeSettings: TimeSettings? = null,
 )
 
 /** 樹形図を JSON にする (「過去の棋譜」と、表示中の棋譜の保存用)。SGF と違い読み筋の分岐と形勢も残す */
@@ -32,6 +33,8 @@ object KifuJson {
         put("black", r.blackName)
         put("white", r.whiteName)
         r.gameDate?.let { put("date", it) }
+        r.timeSettings?.mainTimeSec?.let { put("tm", it) }
+        r.timeSettings?.overtime?.let { put("ot", it) }
         put("root", nodeToJson(r.root))
     }
 
@@ -40,6 +43,8 @@ object KifuJson {
         if (n.isPvBranch) { put("pv", true); put("pc", n.pvColorIndex) }
         n.winrateBlack?.let { put("wr", it) }
         n.scoreLeadBlack?.let { put("sl", it) }
+        n.timeLeft?.let { put("tl", it) }
+        n.periodsLeft?.let { put("pl", it) }
         n.result?.let { res ->
             put("re", res.code)
             if (res.deadStones.isNotEmpty()) {
@@ -58,17 +63,23 @@ object KifuJson {
         readNode(root, o.getJSONObject("root"))
         return KifuRecord(
             root = root,
-            komi = o.optDouble("komi", Rules.JAPANESE.defaultKomi),
+            komi = o.optDouble("komi", Rules.JAPANESE.defaultKomi(size)),
             rules = runCatching { Rules.valueOf(o.optString("rules")) }.getOrDefault(Rules.JAPANESE),
             blackName = o.optString("black", ""),
             whiteName = o.optString("white", ""),
             gameDate = o.optString("date").takeIf { it.isNotBlank() },
+            timeSettings = TimeSettings(
+                mainTimeSec = if (o.has("tm")) o.getDouble("tm") else null,
+                overtime = o.optString("ot").takeIf { it.isNotBlank() },
+            ).takeIf { it.mainTimeSec != null || it.overtime != null },
         )
     }
 
     private fun readNode(n: GoNode, o: JSONObject) {
         if (o.has("wr")) n.winrateBlack = o.getDouble("wr")
         if (o.has("sl")) n.scoreLeadBlack = o.getDouble("sl")
+        if (o.has("tl")) n.timeLeft = o.getDouble("tl")
+        if (o.has("pl")) n.periodsLeft = o.getInt("pl")
         if (o.has("re")) {
             val dArr = o.optJSONArray("dead") ?: JSONArray()
             val own = o.optJSONArray("own")?.let { a -> (0 until a.length()).map { a.getDouble(it) } }
@@ -352,8 +363,8 @@ object KifuHistoryManager {
                         knownIds.add(id)
 
                         val record = KifuRecord(
-                            loaded.root, loaded.komi ?: Rules.JAPANESE.defaultKomi, loaded.rules ?: Rules.JAPANESE,
-                            loaded.blackName ?: "", loaded.whiteName ?: "", loaded.date,
+                            loaded.root, loaded.komi ?: Rules.JAPANESE.defaultKomi(loaded.root.game.size), loaded.rules ?: Rules.JAPANESE,
+                            loaded.blackName ?: "", loaded.whiteName ?: "", loaded.date, loaded.timeSettings,
                         )
                         val savedAt = id.toLongOrNull() ?: System.currentTimeMillis()
                         writeTextAtomic(kifuFile(context, id), KifuJson.toJson(record).toString())

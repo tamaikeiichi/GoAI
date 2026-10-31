@@ -91,24 +91,36 @@ data class Candidate(
     val pv: List<Move>,
 )
 
-data class Analysis(val candidates: List<Candidate>, val ownershipBlack: List<Double>?) {
+/** rootInfo (局面そのものの評価。rootInfo true を付けたときだけ来る) */
+data class RootInfo(val winrateBlack: Double, val scoreLeadBlack: Double)
+
+data class Analysis(val candidates: List<Candidate>, val ownershipBlack: List<Double>?, val root: RootInfo? = null) {
     val best: Candidate? get() = candidates.minByOrNull { it.order }
 }
 
 object AnalysisParser {
-    /** "info move D5 visits 10 ... pv D5 E4 info move ... ownership 0.1 ..." の1行を読む */
+    /** "info move D5 visits 10 ... pv D5 E4 info move ... rootInfo visits 12 ... ownership 0.1 ..." の1行を読む */
     fun parse(line: String, size: Int): Analysis? {
         val tokens = line.trim().split(Regex("\\s+"))
         if (tokens.firstOrNull() != "info") return null
         val candidates = mutableListOf<Candidate>()
         var ownership: List<Double>? = null
+        var root: RootInfo? = null
+        val sectionStarts = setOf("info", "rootInfo", "ownership")
         var i = 0
         while (i < tokens.size) {
             when (tokens[i]) {
                 "info" -> {
-                    val end = (i + 1 until tokens.size).firstOrNull { tokens[it] == "info" || tokens[it] == "ownership" }
-                        ?: tokens.size
+                    val end = (i + 1 until tokens.size).firstOrNull { tokens[it] in sectionStarts } ?: tokens.size
                     parseCandidate(tokens.subList(i + 1, end), size)?.let { candidates += it }
+                    i = end
+                }
+                "rootInfo" -> {
+                    val end = (i + 1 until tokens.size).firstOrNull { tokens[it] in sectionStarts } ?: tokens.size
+                    val map = tokens.subList(i + 1, end).chunked(2).filter { it.size == 2 }.associate { it[0] to it[1] }
+                    val w = map["winrate"]?.toDoubleOrNull()
+                    val s = map["scoreLead"]?.toDoubleOrNull()
+                    if (w != null && s != null) root = RootInfo(w, s)
                     i = end
                 }
                 "ownership" -> {
@@ -120,7 +132,7 @@ object AnalysisParser {
                 else -> i++
             }
         }
-        return Analysis(candidates, ownership)
+        return Analysis(candidates, ownership, root)
     }
 
     private fun parseCandidate(t: List<String>, size: Int): Candidate? {

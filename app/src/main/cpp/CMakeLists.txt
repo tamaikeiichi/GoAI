@@ -48,6 +48,8 @@ target_compile_definitions(katago PRIVATE
     NO_GIT_REVISION
     NO_LIBZIP
     NDEBUG
+    # 21路盤も打てるようにする (既定は 19)。GTP は盤の大きさちょうどの NN を作るので、19路以下が遅くなることはない
+    COMPILE_MAX_BOARD_LEN=21
 )
 
 if(${ANDROID_ABI} STREQUAL "x86_64")

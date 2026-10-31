@@ -9,9 +9,10 @@ GoAI includes the following third party software and data.
   KataGo v1.18.2                   MIT           Go engine (app/src/main/cpp/KataGo)
   KataGo 9x9 network               MIT-style     Neural network weights (9x9)
     (kata9x9-b18c384nbt-20231025)  (KataGo Neural Network License)
-  KataGo network                   MIT-style     Neural network weights (13x13, 19x19)
+  KataGo network                   MIT-style     Neural network weights (boards other than 9x9)
     (kata1-b18c384nbt-s9996604416-  (KataGo Neural Network License)
      d4316597426)
+  KataGo g170e-b10c128 network     CC0 1.0       Neural network weights ("Fast" setting)
   Eigen 3.4.0                      MPL 2.0       Linear algebra for KataGo (CPU)
   TCLAP 1.2.5                      MIT           Command line parsing (KataGo)
   ghc::filesystem 1.5.8            MIT           Filesystem utilities (KataGo)
@@ -75,7 +76,7 @@ present or past (including Facebook, during part of 2020-2023).
 
 ================================================================================
 KataGo 9x9 network: kata9x9-b18c384nbt-20231025  https://katagotraining.org/extra_networks/  (license: https://katagotraining.org/network_license/)
-KataGo network: kata1-b18c384nbt-s9996604416-d4316597426 (13x13, 19x19)  https://katagotraining.org/networks/  (license: https://katagotraining.org/network_license/)
+KataGo network: kata1-b18c384nbt-s9996604416-d4316597426 (boards other than 9x9)  https://katagotraining.org/networks/  (license: https://katagotraining.org/network_license/)
 ================================================================================
 
 KataGo Neural Network License
@@ -621,3 +622,16 @@ AndroidX / Jetpack Compose  (Apache License 2.0)
 ================================================================================
 
 Copyright The Android Open Source Project. Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+
+================================================================================
+KataGo network: g170e-b10c128-s1141046784-d204142634 ("Fast" network setting)
+https://github.com/lightvector/KataGo/releases/tag/v1.3
+================================================================================
+
+The networks of KataGo's "g170" run are released under CC0 1.0 Universal
+(public domain dedication), as stated at https://katagotraining.org/network_license/ :
+"The oldest networks imported from prior runs before distributed training began,
+namely the ones marked on https://katagotraining.org/networks/ as belonging to the
+"g170" run, are not covered by the above license but rather are under CC0 and are
+effectively public domain."

@@ -21,6 +21,8 @@ object Sgf {
             game.handicapStones.forEach { (x, y) -> sb.append("[${coord(x, y)}]") }
         }
         KifuHistoryManager.mainLineResult(root).takeIf { it.isNotEmpty() }?.let { sb.append("RE[$it]") }
+        r.timeSettings?.mainTimeSec?.let { sb.append("TM[${KifuTime.sgfNumber(it)}]") }
+        r.timeSettings?.overtime?.let { sb.append("OT[${escape(it)}]") }
         writeChildren(root, sb)
         sb.append(")\n")
         return sb.toString()
@@ -46,6 +48,10 @@ object Sgf {
             is Move.Play -> coord(mv.x, mv.y)
         }
         sb.append(";${m.color.gtp}[$pos]")
+        // 読み込んだ棋譜の残り時間 (黒は BL・OB、白は WL・OW)
+        val (tl, pl) = if (m.color == Stone.BLACK) "BL" to "OB" else "WL" to "OW"
+        node.timeLeft?.let { sb.append("$tl[${KifuTime.sgfNumber(it)}]") }
+        node.periodsLeft?.let { sb.append("$pl[$it]") }
         writeChildren(node, sb)
     }
 }
