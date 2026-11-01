@@ -53,4 +53,14 @@ class SgfTest {
         val euc = "(;CA[EUC-JP]SZ[9]PB[黒田];B[ee])"
         assertEquals(euc, SgfParser.decode(euc.toByteArray(charset("EUC-JP"))))
     }
+
+    @Test
+    fun normalizesCgosResults() {
+        // CGOS の棋譜は "B+Resign  " のように長い書き方で、後ろに空白が付く
+        fun re(v: String) = SgfParser.parse("(;SZ[9]RE[$v];B[ee])").result
+        assertEquals("B+R", re("B+Resign  "))
+        assertEquals("W+T", re("W+Time    "))
+        assertEquals("B+F", re("B+Illegal "))
+        assertEquals("W+3.5", re("W+3.5   "))
+    }
 }

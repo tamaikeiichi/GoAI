@@ -71,7 +71,7 @@ object SgfParser {
             rules = rules,
             blackName = props["PB"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
             whiteName = props["PW"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
-            result = result,
+            result = result?.let(::normalizeResult),
             date = props["DT"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
             timeSettings = TimeSettings(
                 mainTimeSec = props["TM"]?.firstOrNull()?.trim()?.toDoubleOrNull(),
@@ -80,10 +80,13 @@ object SgfParser {
         )
     }
 
-    /** "B+3.5" / "W+R" / "0" 以外の書き方 ("B+Resign", "Draw" など) をそろえる */
+    /** "B+3.5" / "W+R" / "B+T" / "B+F" / "0" 以外の書き方 ("B+Resign", "B+Time", "B+Illegal", "Draw" など) をそろえる */
     private fun normalizeResult(re: String): String = when {
         re.equals("Draw", true) || re == "0" -> "0"
         re.matches(Regex("(?i)[BW]\\+(R|Resign)")) -> "${re[0].uppercaseChar()}+R"
+        re.matches(Regex("(?i)[BW]\\+(T|Time)")) -> "${re[0].uppercaseChar()}+T"
+        // 反則 (不正な着手など) は SGF では F (forfeit)
+        re.matches(Regex("(?i)[BW]\\+(F|Forfeit|Illegal)")) -> "${re[0].uppercaseChar()}+F"
         else -> re
     }
 

@@ -58,7 +58,9 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.width
@@ -82,6 +84,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.Dispatchers
@@ -242,18 +245,34 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             }
         }
     }
-    val importKifuLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            coroutineScope.launch {
-                val result = withContext(Dispatchers.IO) { KifuHistoryManager.importFromUri(context, uri) }
-                kifuIoMessage = buildString {
-                    append(context.getString(R.string.kifu_import_success, result.imported))
-                    if (result.skipped > 0) append(context.getString(R.string.kifu_import_skipped_suffix, result.skipped))
-                }
+    // 取り込み中なら、これまでに読んだ棋譜の数 (数千局の圧縮ファイルやフォルダでは時間がかかるので進み具合を出す)
+    var importProgress by remember { mutableStateOf<Int?>(null) }
+    fun runImport(block: ((Int) -> Unit) -> KifuHistoryManager.KifuImportResult) {
+        importProgress = 0
+        coroutineScope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) { block { n -> importProgress = n } }
+            } finally {
+                importProgress = null
+            }
+            kifuIoMessage = buildString {
+                append(context.getString(R.string.kifu_import_success, result.imported))
+                if (result.skipped > 0) append(context.getString(R.string.kifu_import_skipped_suffix, result.skipped))
+                if (result.overflow > 0) append(context.getString(R.string.kifu_import_overflow_suffix, result.overflow))
             }
         }
+    }
+    val importKifuLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) runImport { onProgress -> KifuHistoryManager.importFromUris(context, uris, onProgress) }
+    }
+    // Android の選択画面はファイル用とフォルダ用が別なので、インポートは1つの項目にして、どちらを選ぶかだけ聞く
+    var showImportChooser by rememberSaveable { mutableStateOf(false) }
+    val importKifuFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) runImport { onProgress -> KifuHistoryManager.importFromTree(context, uri, onProgress) }
     }
 
     LaunchedEffect(vm.message) {
@@ -477,8 +496,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     exportKifuLauncher.launch("go_kifu_$ts.zip")
                     showMenu = false
                 }
-                MenuItem(Icons.Outlined.Download, text = { Text(stringResource(R.string.menu_import_history_zip)) }) {
-                    importKifuLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                MenuItem(Icons.Outlined.Download, text = { Text(stringResource(R.string.menu_import_history)) }) {
+                    showImportChooser = true
                     showMenu = false
                 }
                 MenuItem(Icons.Outlined.Info, text = { Text(stringResource(R.string.about)) }) {
@@ -518,6 +537,52 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
         )
     }
 
+    if (showImportChooser) {
+        AlertDialog(
+            onDismissRequest = { showImportChooser = false },
+            icon = { Icon(Icons.Outlined.Download, null) },
+            title = { Text(stringResource(R.string.import_chooser_title)) },
+            text = { Text(stringResource(R.string.import_chooser_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImportChooser = false
+                    // 形式は中身で見分けるので、どのファイルも選べるようにする
+                    importKifuLauncher.launch(arrayOf("*/*"))
+                }) {
+                    Icon(Icons.Outlined.Description, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.import_choose_files))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportChooser = false
+                    importKifuFolderLauncher.launch(null)
+                }) {
+                    Icon(Icons.Outlined.FolderOpen, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.import_choose_folder))
+                }
+            },
+        )
+    }
+
+    importProgress?.let { n ->
+        AlertDialog(
+            onDismissRequest = {},
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            title = { Text(stringResource(R.string.menu_history)) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                    Spacer(Modifier.width(16.dp))
+                    Text(stringResource(R.string.kifu_import_progress, n))
+                }
+            },
+            confirmButton = {},
+        )
+    }
+
     kifuIoMessage?.let { msg ->
         AlertDialog(
             onDismissRequest = { kifuIoMessage = null },
@@ -542,11 +607,13 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
     }
     val filteredEntries by remember {
         derivedStateOf {
-            val q = searchQuery.trim()
+            // 日本語キーボードで入れた全角の英数字 (ｂ１０) でも半角の名前・日付に当たるよう、NFKC でそろえて比べる
+            fun norm(s: String) = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC)
+            val q = norm(searchQuery.trim())
             if (q.isBlank()) historyEntries.toList()
             else historyEntries.filter { e ->
-                e.blackName.contains(q, ignoreCase = true) ||
-                    e.whiteName.contains(q, ignoreCase = true) ||
+                norm(e.blackName).contains(q, ignoreCase = true) ||
+                    norm(e.whiteName).contains(q, ignoreCase = true) ||
                     e.displayDate.contains(q)
             }
         }
@@ -561,14 +628,48 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                )
+                // 検索したときは、見つかった棋譜をまとめてゴミ箱に入れる / 戻すボタンを右に出す
+                // (1件ずつと同じくゴミ箱に入れるだけで、24時間以内なら戻せる)
+                val searching = searchQuery.isNotBlank()
+                val activeMatches = if (searching) filteredEntries.filter { it.deletedAt == null } else emptyList()
+                val deletedMatches = if (searching) filteredEntries.filter { it.deletedAt != null } else emptyList()
+                fun setAllDeleted(targets: List<KifuHistoryEntry>, deleted: Boolean) {
+                    val ids = targets.mapTo(HashSet()) { it.id }
+                    val now = System.currentTimeMillis()
+                    for (i in historyEntries.indices) {
+                        val e = historyEntries[i]
+                        if (e.id in ids) historyEntries[i] = e.copy(deletedAt = if (deleted) now else null)
+                    }
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(
+                            if (deleted) R.string.history_bulk_deleted_toast else R.string.history_bulk_restored_toast,
+                            ids.size,
+                        ),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                    coroutineScope.launch(Dispatchers.IO) { KifuHistoryManager.setDeleted(context, ids, deleted) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    )
+                    if (activeMatches.isNotEmpty()) {
+                        IconButton(onClick = { setAllDeleted(activeMatches, true) }) {
+                            Icon(painterResource(R.drawable.delete_24px), stringResource(R.string.history_delete_all_matches))
+                        }
+                    }
+                    if (deletedMatches.isNotEmpty()) {
+                        IconButton(onClick = { setAllDeleted(deletedMatches, false) }) {
+                            Icon(painterResource(R.drawable.undo_24px), stringResource(R.string.history_restore_all_matches))
+                        }
+                    }
+                }
                 if (filteredEntries.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
@@ -1043,7 +1144,12 @@ private fun resultText(code: String): String {
     val winner = if (code.startsWith("B")) colorName(Stone.BLACK) else colorName(Stone.WHITE)
     val detail = code.substringAfter("+", "")
     return when {
-        detail.equals("R", ignoreCase = true) -> stringResource(R.string.result_resign, winner)
+        // 長い書き方 (B+Resign など) は SgfParser でそろえるが、以前に取り込んだ棋譜にはそのまま残っている
+        detail.lowercase() in setOf("r", "resign") -> stringResource(R.string.result_resign, winner)
+        detail.lowercase() in setOf("t", "time") -> stringResource(R.string.result_time, winner)
+        detail.lowercase() in setOf("f", "forfeit", "illegal") -> stringResource(R.string.result_forfeit, winner)
+        // 数字でなければ (他のソフトの独自の書き方) 「目勝ち」を付けずにそのまま出す
+        detail.toDoubleOrNull() == null -> code
         detail.isNotEmpty() -> stringResource(R.string.result_points, winner, detail)
         else -> code
     }

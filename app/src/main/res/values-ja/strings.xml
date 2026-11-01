@@ -14,6 +14,8 @@
     <string name="engine_error">KataGo を起動できませんでした: %1$s</string>
     <string name="result_draw">持碁</string>
     <string name="result_resign">%1$sの中押し勝ち</string>
+    <string name="result_time">%1$sの時間切れ勝ち</string>
+    <string name="result_forfeit">%1$sの反則勝ち</string>
     <string name="result_points">%1$sの %2$s 目勝ち</string>
     <string name="rules">ルール</string>
     <string name="rules_japanese">日本ルール</string>
@@ -43,7 +45,11 @@
     <string name="menu_settings">設定</string>
     <string name="menu_history">過去の棋譜</string>
     <string name="menu_export_all_history">過去の棋譜をすべてエクスポート</string>
-    <string name="menu_import_history_zip">ZIP圧縮した複数のSGFファイルを過去の棋譜としてインポート</string>
+    <string name="menu_import_history">過去の棋譜をインポート (SGF・圧縮ファイル・フォルダ)</string>
+    <string name="import_chooser_title">棋譜をインポート</string>
+    <string name="import_chooser_message">SGFファイル・圧縮ファイル (ZIP, tar.gz, tar.bz2)・フォルダ (中のフォルダも含む) を自動で読み込みます。Android ではファイルとフォルダを選ぶ画面が別なので、どちらを開くか選んでください。</string>
+    <string name="import_choose_files">ファイル</string>
+    <string name="import_choose_folder">フォルダ</string>
     <string name="menu_play_black">黒番を持って対局</string>
     <string name="menu_play_white">白番を持って対局</string>
     <string name="history_search_placeholder">対局者名・日付で検索</string>
@@ -53,9 +59,15 @@
     <string name="history_delete">削除</string>
     <string name="history_restore">元に戻す</string>
     <string name="history_deleted_toast">24時間後に完全に削除されます</string>
+    <string name="history_delete_all_matches">検索した棋譜をすべて削除</string>
+    <string name="history_restore_all_matches">検索した棋譜をすべて元に戻す</string>
+    <string name="history_bulk_deleted_toast">%1$d件を削除しました。24時間後に完全に削除されます</string>
+    <string name="history_bulk_restored_toast">%1$d件を元に戻しました</string>
     <string name="kifu_export_success">%1$d件の棋譜をエクスポートしました</string>
     <string name="kifu_import_success">%1$d件の棋譜をインポートしました</string>
     <string name="kifu_import_skipped_suffix">（%1$d件は読み込めませんでした）</string>
+    <string name="kifu_import_overflow_suffix">（過去の棋譜が上限に達したため%1$d件は追加しませんでした）</string>
+    <string name="kifu_import_progress">棋譜を読み込んでいます… %1$d件</string>
     <string name="action_load_from_clipboard_desc">クリップボードから読込</string>
     <string name="action_load_from_clipboard_label">読込（クリップボードから）</string>
     <string name="action_stop_game">対局中止</string>

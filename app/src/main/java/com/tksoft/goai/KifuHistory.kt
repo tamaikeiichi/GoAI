@@ -2,6 +2,7 @@ package com.tksoft.goai
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -9,7 +10,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 /** 棋譜1局分。樹形図 (分岐・読み筋・形勢) と、SGF のヘッダに相当する情報 */
@@ -114,7 +114,8 @@ data class KifuHistoryEntry(
 
 /** 「過去の棋譜」(ShogiGUI の KifuHistoryManager を囲碁向けにしたもの。書き出し・読み込みは CSA の代わりに SGF) */
 object KifuHistoryManager {
-    private const val MAX_ENTRIES = 1000
+    // フォルダや圧縮ファイルからまとめて取り込めるよう多めにしている (index.json は 1件 200 バイトほど)
+    private const val MAX_ENTRIES = 10000
     private const val HISTORY_DIR = "kifu_history"
     private const val INDEX_FILE = "index.json"
     const val TRASH_RETENTION_MS = 24L * 60 * 60 * 1000
@@ -276,12 +277,20 @@ object KifuHistoryManager {
     }
 
     /** ゴミ箱に入れる (deleted = true) / ゴミ箱から戻す (false) */
-    fun setDeleted(context: Context, id: String, deleted: Boolean): Unit = synchronized(lock) {
-        val entries = loadIndex(context).toMutableList()
-        val idx = entries.indexOfFirst { it.id == id }
-        if (idx < 0) return
-        entries[idx] = entries[idx].copy(deletedAt = if (deleted) System.currentTimeMillis() else null)
-        saveIndex(context, entries)
+    fun setDeleted(context: Context, id: String, deleted: Boolean) = setDeleted(context, setOf(id), deleted)
+
+    /** まとめてゴミ箱に入れる / 戻す (検索した棋譜の一括削除)。index の読み書きは1回で済ませる */
+    fun setDeleted(context: Context, ids: Set<String>, deleted: Boolean): Unit = synchronized(lock) {
+        if (ids.isEmpty()) return
+        val now = System.currentTimeMillis()
+        var changed = false
+        val entries = loadIndex(context).map { e ->
+            if (e.id in ids && (e.deletedAt != null) != deleted) {
+                changed = true
+                e.copy(deletedAt = if (deleted) now else null)
+            } else e
+        }
+        if (changed) saveIndex(context, entries)
     }
 
     fun bumpToTop(context: Context, id: String): Unit = synchronized(lock) {
@@ -334,66 +343,115 @@ object KifuHistoryManager {
         return count
     }
 
-    data class KifuImportResult(val imported: Int, val skipped: Int)
+    /**
+     * 取り込んだ結果。imported: 追加した数、skipped: 読めなかった数、
+     * overflow: 「過去の棋譜」が上限 (MAX_ENTRIES 件) に達したため追加しなかった数
+     */
+    data class KifuImportResult(val imported: Int, val skipped: Int, val overflow: Int = 0)
 
-    // exportAllToUri で書き出した ZIP (対局ごとの SGF ファイル群) を読み込み、過去の棋譜として追加する。
-    // 1ファイルごとに独立して解析するため、一部が壊れていても他の対局は読み込める。
-    // 標準の SGF なので、他のソフトで作った 9路盤の SGF をまとめた ZIP も取り込める
-    fun importFromUri(context: Context, uri: Uri): KifuImportResult = synchronized(lock) {
-        val entries = loadIndex(context).toMutableList()
-        val knownIds = entries.map { it.id }.toMutableSet()
-        var imported = 0
-        var skipped = 0
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            ZipInputStream(input.buffered()).use { zip ->
-                var zipEntry: ZipEntry? = zip.nextEntry
-                while (zipEntry != null) {
-                    val name = zipEntry.name
-                    if (zipEntry.isDirectory || !name.endsWith(".sgf", ignoreCase = true)) {
-                        zip.closeEntry(); zipEntry = zip.nextEntry; continue
-                    }
-                    val bytes = zip.readBytes()
-                    try {
-                        val loaded = SgfParser.parse(String(bytes, Charsets.UTF_8))
-                        if (loaded.root.children.isEmpty()) throw IllegalArgumentException("no moves")
-
-                        var id = File(name).nameWithoutExtension.takeIf { it.toLongOrNull() != null }
-                            ?: "${System.currentTimeMillis()}_${(0..999999).random()}"
-                        if (id in knownIds) id = "${System.currentTimeMillis()}_${(0..999999).random()}"
-                        knownIds.add(id)
-
-                        val record = KifuRecord(
-                            loaded.root, loaded.komi ?: Rules.JAPANESE.defaultKomi(loaded.root.game.size), loaded.rules ?: Rules.JAPANESE,
-                            loaded.blackName ?: "", loaded.whiteName ?: "", loaded.date, loaded.timeSettings,
-                        )
-                        val savedAt = id.toLongOrNull() ?: System.currentTimeMillis()
-                        writeTextAtomic(kifuFile(context, id), KifuJson.toJson(record).toString())
-                        entries.add(KifuHistoryEntry(
-                            id = id,
-                            blackName = record.blackName,
-                            whiteName = record.whiteName,
-                            gameResult = loaded.result ?: "",
-                            savedAt = savedAt,
-                            moveCount = countMainLineMoves(record.root),
-                            gameDate = loaded.date,
-                            displayDate = computeDisplayDate(loaded.date, savedAt)
-                        ))
-                        imported++
-                    } catch (e: Exception) { skipped++ }
-                    zip.closeEntry()
-                    zipEntry = zip.nextEntry
+    /**
+     * SGF ファイル・圧縮ファイル (ZIP, tar, .tar.gz, .tar.bz2 など) を読み込み、中の SGF を過去の棋譜として追加する。
+     * exportAllToUri で書き出した ZIP も、他のソフトで作った SGF をまとめたものも読める。
+     * 複数のファイルをまとめて渡せる。onProgress には、これまでに読んだ SGF の数を渡す
+     */
+    fun importFromUris(context: Context, uris: List<Uri>, onProgress: (Int) -> Unit = {}): KifuImportResult = synchronized(lock) {
+        val session = ImportSession(context, onProgress)
+        for (uri in uris) {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    KifuSources.forEachSgf(input, displayName(context, uri) ?: "", session::add)
                 }
+            } catch (e: Exception) {
+                // 途中で壊れていても、それまでに読めた分は残す
+                session.skipped++
             }
         }
-        if (imported == 0) return KifuImportResult(0, skipped)
+        session.finish()
+    }
 
-        val merged = entries.sortedByDescending { it.savedAt }.toMutableList()
-        if (merged.size > MAX_ENTRIES) {
-            merged.subList(MAX_ENTRIES, merged.size).forEach { kifuFile(context, it.id).delete() }
-            while (merged.size > MAX_ENTRIES) merged.removeAt(merged.lastIndex)
+    /** フォルダ (treeUri) の中の SGF と圧縮ファイルを、下のフォルダまですべて読み込んで過去の棋譜として追加する */
+    fun importFromTree(context: Context, treeUri: Uri, onProgress: (Int) -> Unit = {}): KifuImportResult = synchronized(lock) {
+        val session = ImportSession(context, onProgress)
+        try {
+            KifuSources.forEachSgfInTree(context, treeUri, session::add) { session.skipped++ }
+        } catch (e: Exception) {
+            session.skipped++
         }
-        saveIndex(context, merged)
-        return KifuImportResult(imported, skipped)
+        session.finish()
+    }
+
+    private fun displayName(context: Context, uri: Uri): String? = try {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    } catch (e: Exception) { null }
+
+    /**
+     * 1回の取り込み。1ファイルごとに独立して解析するため、一部が壊れていても他の対局は読み込める。
+     * 棋譜は読むたびにファイルへ書き (途中で終了しても reconcileWithOrphanFiles で戻る)、index は最後に1回だけ書く
+     */
+    private class ImportSession(private val context: Context, private val onProgress: (Int) -> Unit) {
+        private val entries = loadIndex(context).toMutableList()
+        private val knownIds = entries.mapTo(HashSet()) { it.id }
+        private val startedAt = System.currentTimeMillis()
+        private var seq = 0
+        var imported = 0
+        var skipped = 0
+        private var overflow = 0
+
+        fun add(name: String, bytes: ByteArray) {
+            try {
+                if (entries.size >= MAX_ENTRIES) { overflow++; return }
+                val loaded = SgfParser.parse(SgfParser.decode(bytes))
+                if (loaded.root.children.isEmpty()) throw IllegalArgumentException("no moves")
+
+                // このアプリで書き出した棋譜はファイル名が id (保存した時刻のミリ秒)。
+                // 他のソフトの棋譜 (ファイル名は対局番号など) は、対局日 (DT) を保存日時とみなし、一覧で日付順に並ぶようにする
+                val fileId = File(name).nameWithoutExtension
+                    .takeIf { it.length >= 13 && it.all(Char::isDigit) && it !in knownIds }
+                seq++
+                var savedAt = fileId?.toLong() ?: parseGameDate(loaded.date)?.plus(seq) ?: (startedAt - seq)
+                // 対局中の新しい棋譜の id (今の時刻) とぶつからないよう、未来の時刻にはしない
+                if (fileId == null && savedAt >= startedAt) savedAt = startedAt - seq
+                while (savedAt.toString() in knownIds) savedAt--
+                val id = savedAt.toString()
+
+                val record = KifuRecord(
+                    loaded.root, loaded.komi ?: Rules.JAPANESE.defaultKomi(loaded.root.game.size), loaded.rules ?: Rules.JAPANESE,
+                    loaded.blackName ?: "", loaded.whiteName ?: "", loaded.date, loaded.timeSettings,
+                )
+                writeTextAtomic(kifuFile(context, id), KifuJson.toJson(record).toString())
+                knownIds.add(id)
+                entries.add(KifuHistoryEntry(
+                    id = id,
+                    blackName = record.blackName,
+                    whiteName = record.whiteName,
+                    gameResult = loaded.result?.trim() ?: "",
+                    savedAt = savedAt,
+                    moveCount = countMainLineMoves(record.root),
+                    gameDate = loaded.date,
+                    displayDate = computeDisplayDate(loaded.date, savedAt)
+                ))
+                imported++
+            } catch (e: Exception) {
+                skipped++
+            } finally {
+                onProgress(imported + skipped + overflow)
+            }
+        }
+
+        fun finish(): KifuImportResult {
+            if (imported > 0) saveIndex(context, entries.sortedByDescending { it.savedAt })
+            return KifuImportResult(imported, skipped, overflow)
+        }
+
+        /** SGF の DT (例: "2026-09-01", "2026-09-01,02") の最初の日の 0 時 */
+        private fun parseGameDate(date: String?): Long? {
+            val d = date?.trim()?.take(10) ?: return null
+            if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(d)) return null
+            return try {
+                SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }.parse(d)?.time
+            } catch (e: Exception) { null }
+        }
     }
 
     fun formatDate(timestamp: Long): String = dateFmt.format(Date(timestamp))
