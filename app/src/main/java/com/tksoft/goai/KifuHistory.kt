@@ -43,6 +43,7 @@ object KifuJson {
         if (n.isPvBranch) { put("pv", true); put("pc", n.pvColorIndex) }
         n.winrateBlack?.let { put("wr", it) }
         n.scoreLeadBlack?.let { put("sl", it) }
+        n.analysis?.let { a -> analysisToJson(a, n.game.size)?.let { put("an", it) } }
         n.timeLeft?.let { put("tl", it) }
         n.periodsLeft?.let { put("pl", it) }
         n.result?.let { res ->
@@ -53,6 +54,41 @@ object KifuJson {
             res.ownershipBlack?.let { put("own", JSONArray(it)) }
         }
         if (n.children.isNotEmpty()) put("c", JSONArray().apply { n.children.forEach { put(nodeToJson(it)) } })
+    }
+
+    /** 読み筋カードに出す候補手だけを残す (形勢の地図 ownership は大きいので残さない) */
+    private const val SAVED_CANDIDATES = 3
+
+    private fun analysisToJson(a: Analysis, size: Int): JSONArray? {
+        val cands = a.candidates.sortedBy { it.order }.take(SAVED_CANDIDATES)
+        if (cands.isEmpty()) return null
+        return JSONArray().apply {
+            cands.forEach { c ->
+                put(JSONObject().apply {
+                    put("m", GtpCoord.toGtp(c.move, size))
+                    put("v", c.visits)
+                    put("wr", c.winrateBlack)
+                    put("sl", c.scoreLeadBlack)
+                    put("pv", c.pv.joinToString(" ") { GtpCoord.toGtp(it, size) })
+                })
+            }
+        }
+    }
+
+    private fun analysisFromJson(arr: JSONArray, size: Int): Analysis? {
+        val cands = (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val move = GtpCoord.fromGtp(o.optString("m"), size) ?: return@mapNotNull null
+            Candidate(
+                move = move,
+                visits = o.optInt("v", 0),
+                winrateBlack = o.optDouble("wr", 0.5),
+                scoreLeadBlack = o.optDouble("sl", 0.0),
+                order = i,
+                pv = o.optString("pv").split(' ').filter { it.isNotEmpty() }.mapNotNull { GtpCoord.fromGtp(it, size) },
+            )
+        }
+        return if (cands.isEmpty()) null else Analysis(cands, null)
     }
 
     fun fromJson(o: JSONObject): KifuRecord {
@@ -78,6 +114,7 @@ object KifuJson {
     private fun readNode(n: GoNode, o: JSONObject) {
         if (o.has("wr")) n.winrateBlack = o.getDouble("wr")
         if (o.has("sl")) n.scoreLeadBlack = o.getDouble("sl")
+        o.optJSONArray("an")?.let { n.analysis = analysisFromJson(it, n.game.size) }
         if (o.has("tl")) n.timeLeft = o.getDouble("tl")
         if (o.has("pl")) n.periodsLeft = o.getInt("pl")
         if (o.has("re")) {
