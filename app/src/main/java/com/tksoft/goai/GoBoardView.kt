@@ -37,6 +37,8 @@ private const val MARGIN = 1.1f
 /** 盤の端から座標の文字の中心までのマス数 */
 private const val LABEL_POS = 0.32f
 private const val COLUMN_LABELS = "ABCDEFGHJKLMNOPQRSTUV"
+// 実手順の次の一手を示す薄い石の濃さ (候補手の番号を重ねても読めるくらい)
+private const val NEXT_MOVE_ALPHA = 0.45f
 /** 碁盤の目の縦横比。実物の碁盤 (目の幅 約 22mm, 高さ 約 23.7mm) と同じく少し縦長にする */
 const val BOARD_CELL_ASPECT = 1.07f
 
@@ -102,6 +104,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
  *   DOUBLE_TAP は1回目のタップで半透明の石を出して同じ点の2回目のタップで打ち、
  *   DRAG は触れた位置のやや上 (指に隠れない所) に半透明の石を出し、ドラッグして離した交点に打つ
  * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
+ * @param nextMove 実手順の次の一手 (打った色と位置)。薄い石で示し、候補手と重なるときはその上に候補の番号を書く
  */
 @Composable
 fun GoBoardView(
@@ -110,6 +113,7 @@ fun GoBoardView(
     modifier: Modifier = Modifier,
     boardColor: Color = woodBoardColor,
     candidates: List<BoardCandidate> = emptyList(),
+    nextMove: Pair<Stone, Move.Play>? = null,
     result: GameResult? = null,
     pvStartMove: Int? = null,
     placement: Placement = Placement.TAP,
@@ -238,11 +242,25 @@ fun GoBoardView(
         // どちらの手番の候補か分かるよう、丸の縁を打つ側の色 (黒番なら黒、白番なら白) のやや太い線にする
         val candidateRim = if (game.toPlay == Stone.BLACK) Color(0xFF111111) else Color.White
         val rimWidth = cell * 0.07f
+        val next = nextMove?.takeIf { (_, m) -> board[m.x, m.y] == Stone.EMPTY }
         candidates.forEach { cand ->
+            // 実手順の次の一手と同じ点の候補は、下の薄い石の上に番号だけ書く
+            if (next != null && next.second == cand.move) return@forEach
             val c = center(cand.move.x, cand.move.y)
             drawCircle(cand.color, radius = cell * 0.42f, center = c)
             drawCircle(candidateRim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth))
             drawLabel(cand.label, c, cell * 0.45f, Color(0xFF1B1B1B))
+        }
+
+        // 実手順の次の一手: 薄い石。候補手と重なれば、候補の色の縁取りと番号を重ねる
+        if (next != null) {
+            val (color, m) = next
+            val c = center(m.x, m.y)
+            drawStone(c, cell, color, alpha = NEXT_MOVE_ALPHA)
+            candidates.firstOrNull { it.move == m }?.let { cand ->
+                drawCircle(cand.color, radius = cell * 0.48f - rimWidth / 2, center = c, style = Stroke(rimWidth))
+                drawLabel(cand.label, c, cell * 0.45f, if (color == Stone.BLACK) Color.White else Color(0xFF1B1B1B))
+            }
         }
 
         // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する。

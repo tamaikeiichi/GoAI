@@ -940,6 +940,10 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
         }
     } else emptyList()
     val node = vm.currentNode
+    // 候補手を出しているときは、実際に打たれた次の一手 (読み筋の分岐でない最初の子) を薄い石で示し、候補手と比べられるようにする
+    val nextMove = if (candidates.isNotEmpty()) {
+        node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
+    } else null
     Box(contentAlignment = Alignment.Center) {
         GoBoardView(
             game = game,
@@ -947,6 +951,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
+            nextMove = nextMove,
             result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
             placement = vm.settings.placement,
