@@ -110,8 +110,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -930,6 +928,10 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
     }
 }
 
+/** 実際に打たれた次の一手 (読み筋の分岐でない最初の子) の色と位置 */
+private fun actualNextMove(node: GoNode): Pair<Stone, Move.Play>? =
+    node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
+
 /** 盤と、その上に重ねるエンジンの起動失敗の表示 */
 @Composable
 private fun Board(vm: GameViewModel, modifier: Modifier) {
@@ -943,15 +945,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
     } else emptyList()
     val node = vm.currentNode
     // 候補手を出しているときは、実際に打たれた次の一手 (読み筋の分岐でない最初の子) を薄い石で示し、候補手と比べられるようにする
-    val nextMove = if (candidates.isNotEmpty()) {
-        node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
-    } else null
-    // 解析を止めたら、すぐに候補手をゆっくり半透明にし始める (解析中は不透明)
-    val candidateAlpha = remember { Animatable(1f) }
-    LaunchedEffect(vm.analyzing) {
-        if (vm.analyzing) candidateAlpha.snapTo(1f)
-        else candidateAlpha.animateTo(0.5f, tween(durationMillis = 800))
-    }
+    val nextMove = if (candidates.isNotEmpty()) actualNextMove(node) else null
     Box(contentAlignment = Alignment.Center) {
         GoBoardView(
             game = game,
@@ -959,7 +953,6 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
-            candidateAlpha = candidateAlpha.value,
             nextMove = nextMove,
             result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
@@ -1020,7 +1013,8 @@ private fun PlayerNameDialog(vm: GameViewModel, stone: Stone, onDismiss: () -> U
 /** 読み筋カード: 初手と、読んだ先の形勢 (あなたから見た勝率・目数) */
 @Composable
 private fun PvCards(vm: GameViewModel, compact: Boolean = false) {
-    val (_, analysis) = vm.shownAnalysis ?: return
+    val (analyzedNode, analysis) = vm.shownAnalysis ?: return
+    val actual = actualNextMove(analyzedNode)
     val viewer = vm.humanColor ?: vm.shownAnalysis?.first?.game?.toPlay ?: Stone.BLACK
     val label = if (vm.humanColor != null) R.string.evaluation_format else
         if (viewer == Stone.BLACK) R.string.evaluation_format_black else R.string.evaluation_format_white
@@ -1033,6 +1027,7 @@ private fun PvCards(vm: GameViewModel, compact: Boolean = false) {
         PvInfoCard(
             rank = rank,
             mover = mover,
+            actualStone = actual?.takeIf { it.second == c.move }?.first,
             firstMove = GtpCoord.display(first, stringResource(R.string.pass)),
             evaluation = stringResource(
                 label,

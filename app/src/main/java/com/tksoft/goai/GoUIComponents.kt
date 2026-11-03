@@ -53,10 +53,11 @@ fun getPvColor(rank: Int): Color {
 /**
  * 読み筋カード。座標を並べた手順は分かりにくいので、初手と、読んだ先の形勢だけを書く。
  * タップすると読み筋が盤上に番号付きで並ぶ
+ * @param actualStone 初手が実手順の次の一手と同じなら、その石の色。盤上と同じく番号付きの石で示す
  */
 @Composable
 fun PvInfoCard(
-    rank: Int, mover: Stone, firstMove: String, evaluation: String, selected: Boolean,
+    rank: Int, mover: Stone, actualStone: Stone?, firstMove: String, evaluation: String, selected: Boolean,
     compact: Boolean = false, onTap: () -> Unit,
 ) {
     Card(
@@ -69,7 +70,7 @@ fun PvInfoCard(
         )
     ) {
         val move: @Composable () -> Unit = {
-            StoneIcon(mover, Modifier.size(18.dp))
+            CandidateIcon("$rank", getPvColor(rank), mover, actualStone, Modifier.size(24.dp))
             Text(
                 text = firstMove,
                 style = MaterialTheme.typography.titleMedium,
