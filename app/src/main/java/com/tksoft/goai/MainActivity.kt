@@ -946,14 +946,11 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
     val nextMove = if (candidates.isNotEmpty()) {
         node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
     } else null
-    // 解析を止めたら、1秒ほどおいて候補手をゆっくり半透明にする (解析中は不透明)
+    // 解析を止めたら、すぐに候補手をゆっくり半透明にし始める (解析中は不透明)
     val candidateAlpha = remember { Animatable(1f) }
     LaunchedEffect(vm.analyzing) {
         if (vm.analyzing) candidateAlpha.snapTo(1f)
-        else {
-            delay(1000)
-            candidateAlpha.animateTo(0.5f, tween(durationMillis = 800))
-        }
+        else candidateAlpha.animateTo(0.5f, tween(durationMillis = 800))
     }
     Box(contentAlignment = Alignment.Center) {
         GoBoardView(

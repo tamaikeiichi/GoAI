@@ -234,14 +234,17 @@ fun GoBoardView(
             }
         }
 
-        // 実手順の次の一手: 薄い石。候補手と重なれば、候補の色の縁取りと番号を重ねる
+        // 実手順の次の一手: 薄い石。候補手と重なれば、普通の (不透明な) 石にして、その上に候補の番号だけ書く
         if (next != null) {
             val (color, m) = next
             val c = center(m.x, m.y)
-            drawStone(c, cell, color, alpha = NEXT_MOVE_ALPHA)
-            candidates.firstOrNull { it.move == m }?.let { cand ->
+            val cand = candidates.firstOrNull { it.move == m }
+            if (cand == null) {
+                drawStone(c, cell, color, alpha = NEXT_MOVE_ALPHA)
+            } else {
+                // 石も番号と一緒に、解析を止めた後は他の候補手と同じく薄くする
                 withAlpha(candidateAlpha) {
-                    drawCircle(cand.color, radius = cell * 0.48f - rimWidth / 2, center = c, style = Stroke(rimWidth))
+                    drawStone(c, cell, color, alpha = 1f)
                     drawLabel(cand.label, c, cell * 0.45f, if (color == Stone.BLACK) Color.White else Color(0xFF1B1B1B))
                 }
             }
