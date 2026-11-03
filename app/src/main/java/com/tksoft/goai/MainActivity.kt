@@ -110,6 +110,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -944,6 +946,15 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
     val nextMove = if (candidates.isNotEmpty()) {
         node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
     } else null
+    // 解析を止めたら、1秒ほどおいて候補手をゆっくり半透明にする (解析中は不透明)
+    val candidateAlpha = remember { Animatable(1f) }
+    LaunchedEffect(vm.analyzing) {
+        if (vm.analyzing) candidateAlpha.snapTo(1f)
+        else {
+            delay(1000)
+            candidateAlpha.animateTo(0.5f, tween(durationMillis = 800))
+        }
+    }
     Box(contentAlignment = Alignment.Center) {
         GoBoardView(
             game = game,
@@ -951,6 +962,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
+            candidateAlpha = candidateAlpha.value,
             nextMove = nextMove,
             result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
