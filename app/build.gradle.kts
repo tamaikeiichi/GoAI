@@ -35,8 +35,24 @@ android {
         }
     }
 
+    // 署名鍵の場所とパスワードはリポジトリに入れず、~/.gradle/gradle.properties から読む。
+    // 設定が無ければ署名なしでリリース版を作る。
+    val releaseStoreFile = providers.gradleProperty("GOAI_STORE_FILE").orNull
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = providers.gradleProperty("GOAI_STORE_PASSWORD").get()
+                keyAlias = providers.gradleProperty("GOAI_KEY_ALIAS").get()
+                keyPassword = providers.gradleProperty("GOAI_KEY_PASSWORD").get()
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
