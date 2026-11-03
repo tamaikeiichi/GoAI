@@ -85,7 +85,14 @@ class Board private constructor(val size: Int, private val cells: Array<Stone>) 
         return Board(size, next)
     }
 
-    fun count(color: Stone) = cells.count { it == color }
+    /** 石を取らずに (x, y) に石を置いた盤 (読み筋を一枚の図にするとき、取られた石を残すため) */
+    fun withStone(x: Int, y: Int, color: Stone): Board {
+        val next = cells.copyOf()
+        next[y * size + x] = color
+        return Board(size, next)
+    }
+
+    fun count(color: Stone) =cells.count { it == color }
 
     override fun equals(other: Any?) = other is Board && other.size == size && other.cells.contentEquals(cells)
     override fun hashCode() = cells.contentHashCode()
@@ -141,6 +148,9 @@ class GoGame private constructor(
     )
 
     val board: Board get() = positions.last()
+
+    /** moveCount 手を打った後の盤面 (0 は初期局面) */
+    fun boardAt(moveCount: Int): Board = positions[moveCount.coerceIn(0, moves.size)]
 
     /** 置き碁は白から打つ */
     val toPlay: Stone

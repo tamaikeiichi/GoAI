@@ -89,4 +89,31 @@ class GoGameTest {
         assertEquals(listOf(Move.Play(4, 4), Move.Play(3, 5)), a.best!!.pv)
         assertEquals(0.9, a.ownershipBlack!![0], 1e-9)
     }
+
+    @Test
+    fun pvDiagramKeepsCapturedStones() {
+        var g = GoGame(5)
+        listOf(Move.Play(1, 0), Move.Play(0, 0), Move.Play(0, 1)).forEach { g = g.play(it)!! }
+        assertEquals(Stone.EMPTY, g.board[0, 0])
+        val pv = pvNumbering(g, 0)
+        // 取られた白石も図には残し、番号 2 を付ける
+        assertEquals(Stone.WHITE, pv.stones[0, 0])
+        assertEquals(NumberedStone("2", Stone.WHITE), pv.onBoard[0 to 0])
+        assertTrue(pv.replays.isEmpty())
+    }
+
+    @Test
+    fun pvDiagramMarksEarlierStoneWhenPlayedOver() {
+        var g = GoGame(5)
+        // 起点より前に白 (0,0) があり、読み筋で黒が取って、白がその点に打ち直す
+        listOf(Move.Play(1, 0), Move.Play(0, 0), Move.Play(4, 4)).forEach { g = g.play(it)!! }
+        val start = g.moves.size
+        listOf(Move.Play(3, 3), Move.Play(0, 1), Move.Play(1, 1), Move.Play(2, 0), Move.Play(0, 2), Move.Play(4, 0), Move.Play(0, 0))
+            .forEach { g = g.play(it)!! }
+        assertEquals(Stone.WHITE, g.board[0, 0])
+        val pv = pvNumbering(g, start)
+        val marked = NumberedStone("A", Stone.WHITE)
+        assertEquals(marked, pv.onBoard[0 to 0])
+        assertEquals(listOf(NumberedStone("7", Stone.WHITE) to marked), pv.replays)
+    }
 }

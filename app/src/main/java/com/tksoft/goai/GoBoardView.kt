@@ -42,32 +42,6 @@ private const val NEXT_MOVE_ALPHA = 0.45f
 /** 碁盤の目の縦横比。実物の碁盤 (目の幅 約 22mm, 高さ 約 23.7mm) と同じく少し縦長にする */
 const val BOARD_CELL_ASPECT = 1.07f
 
-/** 番号付きの石 (読み筋の手順) */
-data class NumberedStone(val number: Int, val color: Stone)
-
-/**
- * 読み筋の手順の番号。盤上には、その点に最初に打たれた手の番号を書く。
- * 石が取られた後に同じ点へ打たれた手は盤上に書けないので、新聞の棋譜と同じく
- * 「その手 [盤上の石]」の組 (replays) にして盤の外に書く
- */
-class PvNumbering(
-    val onBoard: Map<Pair<Int, Int>, NumberedStone>,
-    val replays: List<Pair<NumberedStone, NumberedStone>>,
-)
-
-fun pvNumbering(game: GoGame, start: Int): PvNumbering {
-    val onBoard = LinkedHashMap<Pair<Int, Int>, NumberedStone>()
-    val replays = mutableListOf<Pair<NumberedStone, NumberedStone>>()
-    game.moves.forEachIndexed { i, m ->
-        val mv = m.move
-        if (i < start || mv !is Move.Play) return@forEachIndexed
-        val stone = NumberedStone(i - start + 1, m.color)
-        val first = onBoard[mv.x to mv.y]
-        if (first == null) onBoard[mv.x to mv.y] = stone else replays.add(stone to first)
-    }
-    return PvNumbering(onBoard, replays)
-}
-
 /** 黒番・白番などを示す石 (盤上の石と同じ描き方)。文字の ● ○ の代わりに使う */
 @Composable
 fun StoneIcon(stone: Stone, modifier: Modifier = Modifier) {
@@ -83,8 +57,8 @@ fun NumberedStoneIcon(stone: NumberedStone, modifier: Modifier = Modifier) {
         val d = this.size.minDimension
         drawStone(Offset(this.size.width / 2, this.size.height / 2), d / 0.96f, stone.color, alpha = 1f)
         drawLabel(
-            stone.number.toString(), Offset(this.size.width / 2, this.size.height / 2),
-            d * if (stone.number >= 100) 0.42f else if (stone.number >= 10) 0.5f else 0.6f,
+            stone.label, Offset(this.size.width / 2, this.size.height / 2),
+            d * if (stone.label.length >= 3) 0.42f else if (stone.label.length == 2) 0.5f else 0.6f,
             if (stone.color == Stone.BLACK) Color.White else Color.Black,
         )
     }
@@ -184,9 +158,12 @@ fun GoBoardView(
         val board = game.board
         val dead = result?.deadStones ?: emptySet()
         val ownership = result?.ownershipBlack
+        // 読み筋の手順は、取られた石も残した一枚の図にする
+        val pv = pvStartMove?.let { pvNumbering(game, it) }
+        val shown = pv?.stones ?: board
 
         for (y in 0 until size) for (x in 0 until size) {
-            val s = board[x, y]
+            val s = shown[x, y]
             if (s != Stone.EMPTY) drawStone(center(x, y), cell, s, alpha = if ((x to y) in dead) 0.45f else 1f)
         }
 
@@ -212,15 +189,12 @@ fun GoBoardView(
             }
         }
 
-        if (pvStartMove != null) {
+        if (pv != null) {
             // 読み筋の手順: 分岐の起点からの手に番号を付ける (同じ点に打ち直した手は盤の外に書く: pvNumbering)
-            pvNumbering(game, pvStartMove).onBoard.forEach { (p, numbered) ->
-                val stone = board[p.first, p.second]
-                if (stone == Stone.EMPTY) return@forEach
-                val num = numbered.number
+            pv.onBoard.forEach { (p, numbered) ->
                 drawLabel(
-                    num.toString(), center(p.first, p.second), cell * if (num >= 10) 0.42f else 0.5f,
-                    if (stone == Stone.BLACK) Color.White else Color.Black,
+                    numbered.label, center(p.first, p.second), cell * if (numbered.label.length >= 2) 0.42f else 0.5f,
+                    if (numbered.color == Stone.BLACK) Color.White else Color.Black,
                 )
             }
         } else {
