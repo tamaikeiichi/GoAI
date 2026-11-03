@@ -15,3 +15,9 @@
     native <methods>;
     void onOutput(java.lang.String);
 }
+
+# R8 がライブラリのクラスを別パッケージへ移す (repackaging) と、Kotlin の multifile facade
+# (CollectionsKt__IterablesKt など、package-private のクラスを継承でつないだもの) の一部だけが移り、
+# 起動時に IllegalAccessError で落ちる (Play の審査で versionCode 2 がクラッシュでリジェクトされた原因)。
+# パッケージ名を残して、クラスを元のパッケージから動かさないようにする
+-keeppackagenames androidx.**,kotlin.**,kotlinx.**
