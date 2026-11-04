@@ -94,6 +94,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
  *   DRAG は触れた位置のやや上 (指に隠れない所) に半透明の石を出し、ドラッグして離した交点に打つ
  * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
  * @param nextMove 実手順の次の一手 (打った色と位置)。薄い石で示し、候補手と重なるときは普通の石の上に候補の番号を書く
+ * @param candidateAlpha 候補手の濃さ。解析を止めると薄くなる
  */
 @Composable
 fun GoBoardView(
@@ -103,6 +104,7 @@ fun GoBoardView(
     boardColor: Color = woodBoardColor,
     candidates: List<BoardCandidate> = emptyList(),
     nextMove: Pair<Stone, Move.Play>? = null,
+    candidateAlpha: Float = 1f,
     result: GameResult? = null,
     pvStartMove: Int? = null,
     placement: Placement = Placement.TAP,
@@ -233,16 +235,16 @@ fun GoBoardView(
         candidates.forEach { cand ->
             // 実手順の次の一手と同じ点の候補は、下で普通の石の上に番号を書く
             if (next != null && next.second == cand.move) return@forEach
-            drawCandidate(center(cand.move.x, cand.move.y), cell, cand.color, game.toPlay, cand.label)
+            drawCandidate(center(cand.move.x, cand.move.y), cell, cand.color, game.toPlay, cand.label, candidateAlpha)
         }
 
-        // 実手順の次の一手: 薄い石。候補手と重なれば、普通の (不透明な) 石にして、その上に候補の番号だけ書く
+        // 実手順の次の一手: 薄い石。候補手と重なれば、普通の石にして、その上に候補の番号だけ書く (解析を止めると候補手と一緒に薄くなる)
         if (next != null) {
             val (color, m) = next
             val c = center(m.x, m.y)
             val cand = candidates.firstOrNull { it.move == m }
             if (cand == null) drawStone(c, cell, color, alpha = NEXT_MOVE_ALPHA)
-            else drawCandidateStone(c, cell, color, cand.label)
+            else drawCandidateStone(c, cell, color, cand.label, candidateAlpha)
         }
 
         // ドラッグ中の半透明の石と、狙っている交点が分かるよう縦横の線を強調する。
@@ -327,18 +329,18 @@ private val coordinateTypeface: android.graphics.Typeface =
     android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
 
 /** 候補手の丸と順位 */
-private fun DrawScope.drawCandidate(c: Offset, cell: Float, color: Color, mover: Stone, label: String) {
+private fun DrawScope.drawCandidate(c: Offset, cell: Float, color: Color, mover: Stone, label: String, alpha: Float = 1f) {
     val rim = if (mover == Stone.BLACK) Color(0xFF111111) else Color.White
     val rimWidth = cell * 0.07f
-    drawCircle(color, radius = cell * 0.42f, center = c)
-    drawCircle(rim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth))
-    drawLabel(label, c, cell * 0.45f, Color(0xFF1B1B1B))
+    drawCircle(color, radius = cell * 0.42f, center = c, alpha = alpha)
+    drawCircle(rim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth), alpha = alpha)
+    drawLabel(label, c, cell * 0.45f, Color(0xFF1B1B1B).copy(alpha = alpha))
 }
 
 /** 実手順の次の一手と重なった候補手: 普通の石と順位 */
-private fun DrawScope.drawCandidateStone(c: Offset, cell: Float, stone: Stone, label: String) {
-    drawStone(c, cell, stone, alpha = 1f)
-    drawLabel(label, c, cell * 0.45f, if (stone == Stone.BLACK) Color.White else Color(0xFF1B1B1B))
+private fun DrawScope.drawCandidateStone(c: Offset, cell: Float, stone: Stone, label: String, alpha: Float = 1f) {
+    drawStone(c, cell, stone, alpha = alpha)
+    drawLabel(label, c, cell * 0.45f, (if (stone == Stone.BLACK) Color.White else Color(0xFF1B1B1B)).copy(alpha = alpha))
 }
 
 /** @param typeface 指定すると、擬似ボールドにせずその書体で書く */
