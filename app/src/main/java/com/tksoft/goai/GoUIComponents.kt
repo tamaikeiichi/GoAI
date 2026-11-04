@@ -50,6 +50,17 @@ fun getPvColor(rank: Int): Color {
     }
 }
 
+/** [getPvColor] の上に書く文字の色 */
+@Composable
+fun getPvContentColor(rank: Int): Color {
+    return when (rank) {
+        1 -> MaterialTheme.colorScheme.onPrimaryContainer
+        2 -> MaterialTheme.colorScheme.onSecondaryContainer
+        3 -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
 /**
  * 読み筋カード。座標を並べた手順は分かりにくいので、初手と、読んだ先の形勢だけを書く。
  * タップすると読み筋が盤上に番号付きで並ぶ
@@ -70,7 +81,7 @@ fun PvInfoCard(
         )
     ) {
         val move: @Composable () -> Unit = {
-            CandidateIcon("$rank", getPvColor(rank), mover, actualStone, Modifier.size(24.dp))
+            CandidateIcon("$rank", getPvColor(rank), getPvContentColor(rank), mover, actualStone, Modifier.size(24.dp))
             Text(
                 text = firstMove,
                 style = MaterialTheme.typography.titleMedium,

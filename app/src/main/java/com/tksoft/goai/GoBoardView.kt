@@ -70,17 +70,17 @@ fun NumberedStoneIcon(stone: NumberedStone, modifier: Modifier = Modifier) {
  * @param actualStone 実手順の次の一手と同じ点なら、その石の色。丸の代わりに番号付きの石を描く
  */
 @Composable
-fun CandidateIcon(label: String, color: Color, mover: Stone, actualStone: Stone?, modifier: Modifier = Modifier) {
+fun CandidateIcon(label: String, color: Color, labelColor: Color, mover: Stone, actualStone: Stone?, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val c = Offset(this.size.width / 2, this.size.height / 2)
         val cell = this.size.minDimension / 0.96f
         if (actualStone != null) drawCandidateStone(c, cell, actualStone, label)
-        else drawCandidate(c, cell, color, mover, label)
+        else drawCandidate(c, cell, color, labelColor, mover, label)
     }
 }
 
 /** 盤上に示す候補手 (解析中) */
-data class BoardCandidate(val move: Move.Play, val color: Color, val label: String)
+data class BoardCandidate(val move: Move.Play, val color: Color, val labelColor: Color, val label: String)
 
 /**
  * 碁盤。将棋盤と違い、石はマスの中ではなく線の交点に置く。
@@ -95,6 +95,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
  * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
  * @param nextMove 実手順の次の一手 (打った色と位置)。薄い石で示し、候補手と重なるときは普通の石の上に候補の番号を書く
  * @param candidateAlpha 候補手の濃さ。解析を止めると薄くなる
+ * @param boardContentColor 線と座標の色。boardColor をテーマの色にするときに、それに合う色を渡す (null なら木の盤の色)
  */
 @Composable
 fun GoBoardView(
@@ -102,6 +103,7 @@ fun GoBoardView(
     onTap: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
     boardColor: Color = woodBoardColor,
+    boardContentColor: Color? = null,
     candidates: List<BoardCandidate> = emptyList(),
     nextMove: Pair<Stone, Move.Play>? = null,
     candidateAlpha: Float = 1f,
@@ -169,8 +171,8 @@ fun GoBoardView(
         fun center(x: Int, y: Int) = Offset(cell * (x + MARGIN), cellH * (y + MARGIN))
 
         drawRect(boardColor)
-        drawGrid(size, cell, cellH)
-        drawCoordinates(size, cell, cellH)
+        drawGrid(size, cell, cellH, boardContentColor ?: lineColor)
+        drawCoordinates(size, cell, cellH, boardContentColor ?: labelColor)
 
         val board = game.board
         val dead = result?.deadStones ?: emptySet()
@@ -235,7 +237,7 @@ fun GoBoardView(
         candidates.forEach { cand ->
             // 実手順の次の一手と同じ点の候補は、下で普通の石の上に番号を書く
             if (next != null && next.second == cand.move) return@forEach
-            drawCandidate(center(cand.move.x, cand.move.y), cell, cand.color, game.toPlay, cand.label, candidateAlpha)
+            drawCandidate(center(cand.move.x, cand.move.y), cell, cand.color, cand.labelColor, game.toPlay, cand.label, candidateAlpha)
         }
 
         // 実手順の次の一手: 薄い石。候補手と重なれば、普通の石にして、その上に候補の番号だけ書く (解析を止めると候補手と一緒に薄くなる)
@@ -252,7 +254,7 @@ fun GoBoardView(
         val g = ghost ?: pending
         if (g != null && ghostColor != null && board[g.first, g.second] == Stone.EMPTY) {
             val c = center(g.first, g.second)
-            val guide = lineColor.copy(alpha = 0.6f)
+            val guide = (boardContentColor ?: lineColor).copy(alpha = 0.6f)
             drawLine(guide, Offset(cell * MARGIN, c.y), Offset(cell * (size - 1 + MARGIN), c.y), strokeWidth = cell * 0.08f)
             drawLine(guide, Offset(c.x, cellH * MARGIN), Offset(c.x, cellH * (size - 1 + MARGIN)), strokeWidth = cell * 0.08f)
             drawStone(c, cell, ghostColor, alpha = 0.6f)
@@ -260,15 +262,15 @@ fun GoBoardView(
     }
 }
 
-private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float) {
+private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float, color: Color) {
     val stroke = (cell * 0.03f).coerceAtLeast(1f)
     val last = size - 1 + MARGIN
     for (i in 0 until size) {
         val px = cell * (i + MARGIN)
         val py = cellH * (i + MARGIN)
         val w = if (i == 0 || i == size - 1) stroke * 2 else stroke
-        drawLine(lineColor, Offset(cell * MARGIN, py), Offset(cell * last, py), strokeWidth = w)
-        drawLine(lineColor, Offset(px, cellH * MARGIN), Offset(px, cellH * last), strokeWidth = w)
+        drawLine(color, Offset(cell * MARGIN, py), Offset(cell * last, py), strokeWidth = w)
+        drawLine(color, Offset(px, cellH * MARGIN), Offset(px, cellH * last), strokeWidth = w)
     }
     // 星 (5路盤は天元だけ、7路盤と9路盤は4隅の三々と天元 / 4隅の三々の内側と天元)
     val stars = when (size) {
@@ -281,12 +283,12 @@ private fun DrawScope.drawGrid(size: Int, cell: Float, cellH: Float) {
         else -> emptyList()
     }
     stars.forEach { (x, y) ->
-        drawCircle(lineColor, radius = cell * 0.08f, center = Offset(cell * (x + MARGIN), cellH * (y + MARGIN)))
+        drawCircle(color, radius = cell * 0.08f, center = Offset(cell * (x + MARGIN), cellH * (y + MARGIN)))
     }
 }
 
 /** 盤の外側の座標。GTP や読み筋カードと同じ表記 (列は I を飛ばした A〜, 行は下から 1〜) */
-private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float) {
+private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float, color: Color) {
     val ts = cell * 0.36f
     // 座標欄 (盤の端と、端の石の間) に書く
     val far = size - 1 + 2 * MARGIN - LABEL_POS
@@ -296,10 +298,10 @@ private fun DrawScope.drawCoordinates(size: Int, cell: Float, cellH: Float) {
         // 左上を 1A にする (新聞の棋譜と同じく上辺に数字、左辺に記号)。GTP の座標 (列が記号、行は下から) とは違う
         val col = (i + 1).toString()
         val row = COLUMN_LABELS[i].toString()
-        drawLabel(col, Offset(px, cellH * LABEL_POS), ts, labelColor, typeface = coordinateTypeface)
-        drawLabel(col, Offset(px, cellH * far), ts, labelColor, typeface = coordinateTypeface)
-        drawLabel(row, Offset(cell * LABEL_POS, py), ts, labelColor, typeface = coordinateTypeface)
-        drawLabel(row, Offset(cell * far, py), ts, labelColor, typeface = coordinateTypeface)
+        drawLabel(col, Offset(px, cellH * LABEL_POS), ts, color, typeface = coordinateTypeface)
+        drawLabel(col, Offset(px, cellH * far), ts, color, typeface = coordinateTypeface)
+        drawLabel(row, Offset(cell * LABEL_POS, py), ts, color, typeface = coordinateTypeface)
+        drawLabel(row, Offset(cell * far, py), ts, color, typeface = coordinateTypeface)
     }
 }
 
@@ -329,12 +331,12 @@ private val coordinateTypeface: android.graphics.Typeface =
     android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
 
 /** 候補手の丸と順位 */
-private fun DrawScope.drawCandidate(c: Offset, cell: Float, color: Color, mover: Stone, label: String, alpha: Float = 1f) {
+private fun DrawScope.drawCandidate(c: Offset, cell: Float, color: Color, labelColor: Color, mover: Stone, label: String, alpha: Float = 1f) {
     val rim = if (mover == Stone.BLACK) Color(0xFF111111) else Color.White
     val rimWidth = cell * 0.07f
     drawCircle(color, radius = cell * 0.42f, center = c, alpha = alpha)
     drawCircle(rim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth), alpha = alpha)
-    drawLabel(label, c, cell * 0.45f, Color(0xFF1B1B1B).copy(alpha = alpha))
+    drawLabel(label, c, cell * 0.45f, labelColor.copy(alpha = alpha))
 }
 
 /** 実手順の次の一手と重なった候補手: 普通の石と順位 */

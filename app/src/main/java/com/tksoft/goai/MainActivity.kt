@@ -13,8 +13,14 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -389,6 +395,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 val playersHeight = 150.dp
                 val boardMaxWidth = ((maxHeight - innerPadding.calculateBottomPadding() - playersHeight) / BOARD_CELL_ASPECT)
                     .coerceAtLeast(200.dp)
+                var boardBounds by remember { mutableStateOf(Rect.Zero) }
+                var menuBounds by remember { mutableStateOf(Rect.Zero) }
                 Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -396,12 +404,20 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     // 盤を少しでも大きくするため、画面の端との余白は狭くする
                     BoardArea(
                         vm, Modifier.widthIn(max = boardMaxWidth).padding(horizontal = 6.dp, vertical = 8.dp),
-                        onMenu = { showMenu = true }, onEditName = { editingName = it },
+                        onBoardBounds = { boardBounds = it }, onEditName = { editingName = it },
                     )
                     Column(modifier = Modifier.padding(8.dp)) { PvCards(vm) }
                     // bottomBar に隠れる分をスクロールで見られるようにする
                     Spacer(modifier = Modifier.height(innerPadding.calculateBottomPadding()))
                 }
+                // スクロールしても動かないよう、スクロールする列の外に重ねる。盤より上に描くので、重なった所のタップはこちらが受ける
+                FloatingMenuButton(
+                    overBoard = boardBounds.overlaps(menuBounds),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 8.dp, top = 4.dp)
+                        .onGloballyPositioned { menuBounds = it.boundsInWindow() },
+                ) { showMenu = true }
             }
         }
 
@@ -794,12 +810,9 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
 
 /** 上の対局者 (AI)・盤・下の対局者 (あなた) */
 @Composable
-private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onMenu: () -> Unit, onEditName: (Stone) -> Unit) {
-    Box(modifier = Modifier.fillMaxWidth()) {
-        PlayerSection(vm, top = true, onEditName = onEditName)
-        MenuButton(Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 4.dp), onClick = onMenu)
-    }
-    Board(vm, boardModifier.fillMaxWidth())
+private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onBoardBounds: (Rect) -> Unit, onEditName: (Stone) -> Unit) {
+    PlayerSection(vm, top = true, onEditName = onEditName)
+    Board(vm, boardModifier.fillMaxWidth().onGloballyPositioned { onBoardBounds(it.boundsInWindow()) })
     PvReplayNote(vm)
     PlayerSection(vm, top = false, onEditName = onEditName)
 }
@@ -946,7 +959,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
     // 解析中の局面では、読み筋カードの候補手を盤上にも示す
     val candidates = if (shown != null && shown.first === vm.currentNode && vm.selectedPvRank == null) {
         shown.second.candidates.sortedBy { it.order }.take(3).mapIndexedNotNull { i, c ->
-            (c.move as? Move.Play)?.let { BoardCandidate(it, getPvColor(i + 1), "${i + 1}") }
+            (c.move as? Move.Play)?.let { BoardCandidate(it, getPvColor(i + 1), getPvContentColor(i + 1), "${i + 1}") }
         }
     } else emptyList()
     val node = vm.currentNode
@@ -964,6 +977,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             onTap = vm::onBoardTap,
             modifier = modifier,
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
+            boardContentColor = if (node.isPvBranch) getPvContentColor(node.pvColorIndex) else null,
             candidates = candidates,
             nextMove = nextMove,
             candidateAlpha = candidateAlpha.value,
@@ -1352,6 +1366,30 @@ private fun MenuButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     }
 }
 
+/** 盤の上に重ねるメニューボタン。盤と重なっている間は、周りをぼかしたように白くして重なりが分かるようにする */
+@Composable
+private fun FloatingMenuButton(overBoard: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val haloAlpha by animateFloatAsState(if (overBoard) 1f else 0f, label = "menuHalo")
+    val haloColor = MaterialTheme.colorScheme.surface
+    MenuButton(
+        modifier.drawBehind {
+            if (haloAlpha > 0f) {
+                val button = size.minDimension / 2
+                val halo = button + 16.dp.toPx()
+                drawCircle(
+                    Brush.radialGradient(
+                        button / halo to haloColor.copy(alpha = 0.85f),
+                        1f to haloColor.copy(alpha = 0f),
+                        center = center, radius = halo,
+                    ),
+                    radius = halo, alpha = haloAlpha,
+                )
+            }
+        },
+        onClick,
+    )
+}
+
 // 画面全体を覆うメニュー (Gemini アプリ風)。左上にアプリ名、右上に ×。
 // 左へスワイプすると指に付いて動き、十分に動かすか素早く払うと閉じる
 @Composable
@@ -1361,6 +1399,7 @@ private fun FullScreenMenu(onClose: () -> Unit, content: @Composable ColumnScope
     Surface(
         // うっすら半透明にして、後ろの盤面が透けて見えるようにする
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { widthPx = it.width }
