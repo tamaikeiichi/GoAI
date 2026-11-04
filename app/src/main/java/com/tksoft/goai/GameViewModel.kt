@@ -672,10 +672,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * 読み筋カードのタップ: その時点の読み筋を色付きの分岐として樹形図に加え、読み筋の最後の局面へ移動する。
      * 盤上には分岐の起点からの手順を番号で表示する (pvStartMove)。
-     * 解析は起点の局面のまま続け、カードは最新の結果に変わっていく。盤上の読み筋はカードをもう一度タップしたときに更新する
+     * 読み筋を見るときは解析を止める (全局面の解析も止める)。カードはタップした時点の結果のまま残る
      */
     fun playPv(rank: Int) {
         if (thinking) return
+        if (autoAnalyzing) stopAutoAnalysis()
         val (branchPoint, a) = shownAnalysis ?: return
         val cand = a.candidates.sortedBy { it.order }.getOrNull(rank - 1) ?: return
         pinnedAnalysis = a
@@ -688,7 +689,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             nodes.add(p)
         }
         currentNode = nodes.lastOrNull() ?: branchPoint
-        if (!analyzing) saveKifu()
+        // stopAnalysis は解析中なら棋譜を保存する。分岐も一緒に残すよう、分岐を作ってから止める
+        if (analyzing) stopAnalysis() else saveKifu()
     }
 
     /** 読み筋の分岐上にいるとき、盤上で手順の番号を付け始める手 (分岐の起点の手数) */

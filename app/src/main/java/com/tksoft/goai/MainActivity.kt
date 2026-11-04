@@ -11,8 +11,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.viewModels
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -928,6 +930,10 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
     }
 }
 
+/** 解析を止めた後の盤上の候補手の濃さと、そこまで薄くする時間 */
+private const val STOPPED_CANDIDATE_ALPHA = 0.5f
+private const val CANDIDATE_FADE_MS = 2000
+
 /** 盤と、その上に重ねるエンジンの起動失敗の表示 */
 @Composable
 private fun Board(vm: GameViewModel, modifier: Modifier) {
@@ -944,6 +950,12 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
     val nextMove = if (candidates.isNotEmpty()) {
         node.children.firstOrNull { !it.isPvBranch }?.move?.let { r -> (r.move as? Move.Play)?.let { r.color to it } }
     } else null
+    // 解析中は候補手をはっきり出し、解析を止めたらゆっくり薄くする (解析を再開したらすぐ濃く戻す)
+    val candidateAlpha = remember { Animatable(if (vm.analyzing) 1f else STOPPED_CANDIDATE_ALPHA) }
+    LaunchedEffect(vm.analyzing) {
+        if (vm.analyzing) candidateAlpha.snapTo(1f)
+        else candidateAlpha.animateTo(STOPPED_CANDIDATE_ALPHA, tween(CANDIDATE_FADE_MS))
+    }
     Box(contentAlignment = Alignment.Center) {
         GoBoardView(
             game = game,
@@ -952,6 +964,7 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             boardColor = if (node.isPvBranch) getPvColor(node.pvColorIndex) else woodBoardColor,
             candidates = candidates,
             nextMove = nextMove,
+            candidateAlpha = candidateAlpha.value,
             result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
             placement = vm.settings.placement,

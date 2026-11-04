@@ -79,6 +79,7 @@ data class BoardCandidate(val move: Move.Play, val color: Color, val label: Stri
  *   DRAG は触れた位置のやや上 (指に隠れない所) に半透明の石を出し、ドラッグして離した交点に打つ
  * @param ghostColor 半透明の石の色。打てないとき (AI の手番など) は null
  * @param nextMove 実手順の次の一手 (打った色と位置)。薄い石で示し、候補手と重なるときはその上に候補の番号を書く
+ * @param candidateAlpha 候補手の濃さ。解析を止めると薄くなる
  */
 @Composable
 fun GoBoardView(
@@ -88,6 +89,7 @@ fun GoBoardView(
     boardColor: Color = woodBoardColor,
     candidates: List<BoardCandidate> = emptyList(),
     nextMove: Pair<Stone, Move.Play>? = null,
+    candidateAlpha: Float = 1f,
     result: GameResult? = null,
     pvStartMove: Int? = null,
     placement: Placement = Placement.TAP,
@@ -221,9 +223,9 @@ fun GoBoardView(
             // 実手順の次の一手と同じ点の候補は、下の薄い石の上に番号だけ書く
             if (next != null && next.second == cand.move) return@forEach
             val c = center(cand.move.x, cand.move.y)
-            drawCircle(cand.color, radius = cell * 0.42f, center = c)
-            drawCircle(candidateRim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth))
-            drawLabel(cand.label, c, cell * 0.45f, Color(0xFF1B1B1B))
+            drawCircle(cand.color, radius = cell * 0.42f, center = c, alpha = candidateAlpha)
+            drawCircle(candidateRim, radius = cell * 0.42f - rimWidth / 2, center = c, style = Stroke(rimWidth), alpha = candidateAlpha)
+            drawLabel(cand.label, c, cell * 0.45f, Color(0xFF1B1B1B).copy(alpha = candidateAlpha))
         }
 
         // 実手順の次の一手: 薄い石。候補手と重なれば、候補の色の縁取りと番号を重ねる
@@ -232,8 +234,11 @@ fun GoBoardView(
             val c = center(m.x, m.y)
             drawStone(c, cell, color, alpha = NEXT_MOVE_ALPHA)
             candidates.firstOrNull { it.move == m }?.let { cand ->
-                drawCircle(cand.color, radius = cell * 0.48f - rimWidth / 2, center = c, style = Stroke(rimWidth))
-                drawLabel(cand.label, c, cell * 0.45f, if (color == Stone.BLACK) Color.White else Color(0xFF1B1B1B))
+                drawCircle(cand.color, radius = cell * 0.48f - rimWidth / 2, center = c, style = Stroke(rimWidth), alpha = candidateAlpha)
+                drawLabel(
+                    cand.label, c, cell * 0.45f,
+                    (if (color == Stone.BLACK) Color.White else Color(0xFF1B1B1B)).copy(alpha = candidateAlpha),
+                )
             }
         }
 
