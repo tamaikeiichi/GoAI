@@ -8,6 +8,8 @@
     <string name="player_name_title_black">Name of the black player</string>
     <string name="player_name_title_white">Name of the white player</string>
     <string name="white">White</string>
+    <string name="default_black_name">Black</string>
+    <string name="default_white_name">White</string>
     <string name="ai_thinking">AI is thinking…</string>
     <string name="counting">Counting…</string>
     <string name="evaluation_format">Your win rate %1$s%%  Score %2$s</string>

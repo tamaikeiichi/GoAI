@@ -7,6 +7,8 @@
     <string name="player_name_title_black">黒の対局者名</string>
     <string name="player_name_title_white">白の対局者名</string>
     <string name="white">白</string>
+    <string name="default_black_name">黒番</string>
+    <string name="default_white_name">白番</string>
     <string name="ai_thinking">AI が考えています…</string>
     <string name="counting">整地しています…</string>
     <string name="evaluation_format">あなたの勝率 %1$s%%  目数 %2$s</string>

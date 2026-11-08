@@ -734,7 +734,7 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
                                             Row(Modifier.weight(0.5f), verticalAlignment = Alignment.CenterVertically) {
                                                 StoneIcon(Stone.BLACK, Modifier.size(14.dp))
                                                 Text(
-                                                    " ${entry.blackName}",
+                                                    " ${playerName(entry.blackName, Stone.BLACK)}",
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
@@ -744,7 +744,7 @@ private fun HistoryDialog(onDismiss: () -> Unit, onOpen: (String, KifuRecord) ->
                                             Row(Modifier.weight(0.5f), verticalAlignment = Alignment.CenterVertically) {
                                                 StoneIcon(Stone.WHITE, Modifier.size(14.dp))
                                                 Text(
-                                                    " ${entry.whiteName}",
+                                                    " ${playerName(entry.whiteName, Stone.WHITE)}",
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
@@ -829,7 +829,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
     val result = vm.result
     val turn = if (result == null) game.toPlay else null
     PlayerStatusSection(
-        name = if (stone == Stone.BLACK) vm.blackName else vm.whiteName,
+        name = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone),
         stone = stone,
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
         isActive = turn == stone,
@@ -921,7 +921,7 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
     ) {
         StoneIcon(stone, Modifier.size(18.dp))
         Text(
-            text = if (stone == Stone.BLACK) vm.blackName else vm.whiteName,
+            text = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = if (isActive) FontWeight.Bold else null,
             maxLines = 1
@@ -1023,7 +1023,8 @@ private fun PvReplayNote(vm: GameViewModel) {
 /** 対局者名の編集 (ShogiGUI と同じく、名前をタップすると開く) */
 @Composable
 private fun PlayerNameDialog(vm: GameViewModel, stone: Stone, onDismiss: () -> Unit) {
-    var text by remember(stone) { mutableStateOf(if (stone == Stone.BLACK) vm.blackName else vm.whiteName) }
+    val nameText = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone)
+    var text by remember(stone) { mutableStateOf(nameText) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1168,6 +1169,27 @@ private fun RowScope.BarButton(
             Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.basicMarquee())
         }
     }
+}
+
+/** 既定の対局者名として使ったことのある語 (どの言語のものも)。言語を変えても既定名を今の言語で出すために使う */
+private val defaultNameIds = listOf(R.string.black, R.string.white, R.string.default_black_name, R.string.default_white_name)
+private val nameLocales = listOf("en", "ja", "ko", "zh", "zh-TW")
+
+private fun defaultPlayerNames(context: Context): Set<String> = nameLocales.flatMap { tag ->
+    val config = android.content.res.Configuration(context.resources.configuration)
+    config.setLocale(Locale.forLanguageTag(tag))
+    val res = context.createConfigurationContext(config).resources
+    defaultNameIds.map { res.getString(it) }
+}.toSet()
+
+/** 対局者名が既定の名前 (「Black」「黒番」など) なら、今の言語の既定名にして返す */
+@Composable
+private fun playerName(name: String, stone: Stone): String {
+    val context = LocalContext.current
+    val defaults = remember(context) { defaultPlayerNames(context) }
+    return if (name in defaults) {
+        stringResource(if (stone == Stone.BLACK) R.string.default_black_name else R.string.default_white_name)
+    } else name
 }
 
 @Composable

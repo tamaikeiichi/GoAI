@@ -7,6 +7,8 @@
     <string name="player_name_title_black">执黑棋手姓名</string>
     <string name="player_name_title_white">执白棋手姓名</string>
     <string name="white">白</string>
+    <string name="default_black_name">黑方</string>
+    <string name="default_white_name">白方</string>
     <string name="ai_thinking">AI 正在思考…</string>
     <string name="counting">正在数子…</string>
     <string name="evaluation_format">你的胜率 %1$s%%  目数 %2$s</string>

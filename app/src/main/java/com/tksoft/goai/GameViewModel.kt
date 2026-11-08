@@ -173,9 +173,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     // 表示中の棋譜の対局者名・対局日と、保存先の「過去の棋譜」の id (まだ1手も打っていない棋譜なら null)
-    var blackName by mutableStateOf(prefs.getString("black_name", null) ?: str(R.string.black))
+    var blackName by mutableStateOf(prefs.getString("black_name", null) ?: str(R.string.default_black_name))
         private set
-    var whiteName by mutableStateOf(prefs.getString("white_name", null) ?: str(R.string.white))
+    var whiteName by mutableStateOf(prefs.getString("white_name", null) ?: str(R.string.default_white_name))
         private set
     private var gameDate: String? = prefs.getString("game_date", null)
     /** 読み込んだ棋譜の持ち時間 (残り時間・消費時間の表示に使う。無ければ null) */
@@ -307,8 +307,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         clearAnalysis()
         engineGame = null
         currentNode = GoNode(GoGame(settings.boardSize, GoGame.handicapPoints(settings.boardSize, settings.handicap)))
-        blackName = str(R.string.black)
-        whiteName = str(R.string.white)
+        blackName = str(R.string.default_black_name)
+        whiteName = str(R.string.default_white_name)
         // 次に打った手からは新しい棋譜として履歴に保存する
         historyId = null
         gameDate = null
@@ -587,8 +587,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         ).also { saveSettings(it) }
         // 読み込んだ直後は、初手から並べて見られるよう棋譜のスタート (初手の前) を示す
         currentNode = loaded.root
-        blackName = loaded.blackName ?: str(R.string.black)
-        whiteName = loaded.whiteName ?: str(R.string.white)
+        blackName = loaded.blackName ?: str(R.string.default_black_name)
+        whiteName = loaded.whiteName ?: str(R.string.default_white_name)
         gameDate = loaded.date
         timeSettings = loaded.timeSettings
         historyId = null
@@ -838,8 +838,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 対局者名を変える (名前をタップしたときのダイアログから)。空なら「黒」「白」に戻す */
     fun renamePlayer(color: Stone, name: String) {
         val n = name.trim()
-        if (color == Stone.BLACK) blackName = n.ifEmpty { str(R.string.black) }
-        else whiteName = n.ifEmpty { str(R.string.white) }
+        if (color == Stone.BLACK) blackName = n.ifEmpty { str(R.string.default_black_name) }
+        else whiteName = n.ifEmpty { str(R.string.default_white_name) }
         saveKifu()
     }
 
@@ -882,8 +882,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .also { saveSettings(it) }
         // 開いた直後は、初手から並べて見られるよう棋譜のスタート (初手の前) を示す
         currentNode = r.root
-        blackName = r.blackName.ifEmpty { str(R.string.black) }
-        whiteName = r.whiteName.ifEmpty { str(R.string.white) }
+        blackName = r.blackName.ifEmpty { str(R.string.default_black_name) }
+        whiteName = r.whiteName.ifEmpty { str(R.string.default_white_name) }
         gameDate = r.gameDate
         timeSettings = r.timeSettings
         historyId = id

@@ -7,6 +7,8 @@
     <string name="player_name_title_black">흑 대국자 이름</string>
     <string name="player_name_title_white">백 대국자 이름</string>
     <string name="white">백</string>
+    <string name="default_black_name">흑</string>
+    <string name="default_white_name">백</string>
     <string name="ai_thinking">AI가 생각 중입니다…</string>
     <string name="counting">계가 중입니다…</string>
     <string name="evaluation_format">나의 승률 %1$s%%  집 %2$s</string>
