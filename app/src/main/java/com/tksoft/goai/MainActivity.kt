@@ -238,8 +238,23 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     var editingName by rememberSaveable { mutableStateOf<Stone?>(null) }
     // 横長レイアウトで盤を最大化しているか (bottomBar と読み筋カードを隠し、盤の上に1行だけ置く)
     var maximized by rememberSaveable { mutableStateOf(false) }
-    val isWide = LocalConfiguration.current.screenWidthDp >= 840
+    // レイアウトは3種類 (ShogiGUI と同じ):
+    //  portrait  … 縦長。上から盤・対局者・読み筋カード、形勢グラフとボタンは下部バー (スマホ、タブレットの縦向き)
+    //  square    … ほぼ正方形。盤の右の列に対局者と読み筋カード、形勢グラフとボタンは下部バー (Fold を開いたとき)
+    //  landscape … 横長。左に盤を画面の高さいっぱいに置き、右の列に対局者・読み筋カード・形勢グラフ・ボタン (タブレットの横向き)
+    // 幅 840dp 以上で横に並べる列を使い、そのうち幅が高さの 1.4 倍以上なら landscape にする
+    // (正方形に近い画面で landscape にすると右の列が狭くなりすぎる)
+    val layout = LocalConfiguration.current.let { conf ->
+        when {
+            conf.screenWidthDp < 840 -> ScreenLayout.PORTRAIT
+            conf.screenWidthDp >= conf.screenHeightDp * 1.4f -> ScreenLayout.LANDSCAPE
+            else -> ScreenLayout.SQUARE
+        }
+    }
+    val isWide = layout != ScreenLayout.PORTRAIT
     val showMaximized = maximized && isWide
+    // landscape では形勢グラフとボタンを下部バーではなく右の列の下に置き、盤を画面の高さいっぱいに大きくする
+    val sidePanel = layout == ScreenLayout.LANDSCAPE && !showMaximized
     BackHandler(enabled = showMaximized) { maximized = false }
     val coroutineScope = rememberCoroutineScope()
     var kifuIoMessage by remember { mutableStateOf<String?>(null) }
@@ -290,29 +305,33 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
         }
     }
 
+    // 形勢グラフとボタンの行。下部バーか、横長の画面では右の列の下に置く
+    val controls: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            KifuTreeSection(
+                vm.currentNode, vm.currentPath,
+                moveTime = KifuTime.consumed(vm.currentNode, vm.timeSettings)?.let { KifuTime.format(it) },
+            ) { vm.goTo(it) }
+            Spacer(modifier = Modifier.height(8.dp))
+            BottomButtons(vm)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
-                if (!showMaximized) Surface(
+                if (!showMaximized && !sidePanel) Surface(
                     color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        KifuTreeSection(
-                            vm.currentNode, vm.currentPath,
-                            moveTime = KifuTime.consumed(vm.currentNode, vm.timeSettings)?.let { KifuTime.format(it) },
-                        ) { vm.goTo(it) }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        BottomButtons(vm)
-                    }
+                    Box(modifier = Modifier.navigationBarsPadding()) { controls() }
                 }
             }
         ) { innerPadding ->
@@ -362,8 +381,9 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 ) {
                     val gap = 8.dp
                     val menuWidth = 48.dp
-                    // 右の列の幅は最低これだけ取り、残りを盤にする。盤は縦長なので高さからも幅を決める
-                    val minSideWidth = 180.dp
+                    // 右の列の幅は最低これだけ (形勢グラフとボタンも置くときはそれらが使える幅) 取り、残りを盤にする。
+                    // 盤は縦長なので高さからも幅を決める
+                    val minSideWidth = if (sidePanel) 400.dp else 180.dp
                     val boardWidth = minOf(maxWidth - menuWidth - minSideWidth - gap * 2, maxHeight / BOARD_CELL_ASPECT)
                         .coerceAtLeast(0.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
@@ -386,6 +406,13 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                                 PvReplayNote(vm)
                             }
                             PlayerSection(vm, top = false, alignStart = true) { editingName = it }
+                            if (sidePanel) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    shape = MaterialTheme.shapes.extraLarge
+                                ) { controls() }
+                            }
                         }
                     }
                 }
@@ -1508,3 +1535,6 @@ fun AboutScreen(onBack: () -> Unit) {
         }
     }
 }
+
+/** 画面のレイアウト。画面の大きさと縦横比から選ぶ */
+private enum class ScreenLayout { PORTRAIT, SQUARE, LANDSCAPE }
