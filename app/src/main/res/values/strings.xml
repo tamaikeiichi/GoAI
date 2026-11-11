@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">GoAI</string>
+    <string name="app_name">Go Game Analysis</string>
     <string name="pass">Pass</string>
     <string name="resign">Resign</string>
     <string name="about">About</string>
@@ -26,7 +26,7 @@
     <string name="handicap">Handicap</string>
     <string name="handicap_none">None</string>
     <string name="komi">Komi</string>
-    <string name="about_text">GoAI is a free, open source Go app (5x5 to 21x21). The AI is KataGo (https://github.com/lightvector/KataGo) running entirely on your device, with official KataGo networks: with the "Strong" network setting, kata9x9-b18c384nbt-20231025 on 9x9 and kata1-b18c384nbt on other boards; with "Fast", g170e-b10c128 on every board.\n\nSource code: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">Go Game Analysis is a free, open source Go app (5x5 to 21x21). The AI is KataGo (https://github.com/lightvector/KataGo) running entirely on your device, with official KataGo networks: with the "Strong" network setting, kata9x9-b18c384nbt-20231025 on 9x9 and kata1-b18c384nbt on other boards; with "Fast", g170e-b10c128 on every board.\n\nSource code: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">Captures: %1$d</string>
     <string name="move_counter">Move %1$d / %2$d</string>
     <string name="nav_previous">Previous</string>

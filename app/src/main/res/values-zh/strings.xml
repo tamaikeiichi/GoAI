@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">围棋棋谱分析</string>
     <string name="pass">停一手</string>
     <string name="resign">认输</string>
     <string name="about">关于</string>
@@ -25,7 +26,7 @@
     <string name="handicap">让子</string>
     <string name="handicap_none">无</string>
     <string name="komi">贴目</string>
-    <string name="about_text">GoAI 是一款免费、开源的围棋应用 (5路至21路)。AI 使用 KataGo (https://github.com/lightvector/KataGo)，全部在设备上运行。网络 (均为 KataGo 官方网络)：设置中的“网络”为“强”时，9路棋盘使用 9路专用的 kata9x9-b18c384nbt-20231025，其他棋盘使用 kata1-b18c384nbt；为“快”时，所有棋盘都使用 g170e-b10c128。\n\n源代码: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">围棋棋谱分析是一款免费、开源的围棋应用 (5路至21路)。AI 使用 KataGo (https://github.com/lightvector/KataGo)，全部在设备上运行。网络 (均为 KataGo 官方网络)：设置中的“网络”为“强”时，9路棋盘使用 9路专用的 kata9x9-b18c384nbt-20231025，其他棋盘使用 kata1-b18c384nbt；为“快”时，所有棋盘都使用 g170e-b10c128。\n\n源代码: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">提子 %1$d</string>
     <string name="move_counter">第%1$d手 / 共%2$d手</string>
     <string name="nav_previous">上一步</string>

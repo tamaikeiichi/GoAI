@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">囲碁棋譜解析</string>
     <string name="pass">パス</string>
     <string name="resign">投了</string>
     <string name="about">情報</string>
@@ -25,7 +26,7 @@
     <string name="handicap">置石</string>
     <string name="handicap_none">なし</string>
     <string name="komi">コミ</string>
-    <string name="about_text">GoAI は無料・オープンソースの囲碁アプリ (5路〜21路)です。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワーク (いずれも KataGo の公式ネット) は、設定の「ネットワーク」が「強い」なら 9路盤では 9路盤専用の kata9x9-b18c384nbt-20231025、ほかの盤では kata1-b18c384nbt、「速い」ならどの盤も g170e-b10c128 です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">囲碁棋譜解析は無料・オープンソースの囲碁アプリ (5路〜21路)です。AI には KataGo (https://github.com/lightvector/KataGo) を使い、すべて端末上で動作します。ネットワーク (いずれも KataGo の公式ネット) は、設定の「ネットワーク」が「強い」なら 9路盤では 9路盤専用の kata9x9-b18c384nbt-20231025、ほかの盤では kata1-b18c384nbt、「速い」ならどの盤も g170e-b10c128 です。\n\nソースコード: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">アゲハマ %1$d</string>
     <string name="move_counter">%1$d手目 / %2$d手</string>
     <string name="nav_previous">前へ</string>

@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">바둑 기보 분석</string>
     <string name="pass">패스</string>
     <string name="resign">기권</string>
     <string name="about">정보</string>
@@ -25,7 +26,7 @@
     <string name="handicap">접바둑</string>
     <string name="handicap_none">없음</string>
     <string name="komi">덤</string>
-    <string name="about_text">GoAI는 무료 오픈 소스 바둑 앱 (5줄~21줄)입니다. AI로 KataGo (https://github.com/lightvector/KataGo)를 사용하며, 모든 처리가 기기 안에서 이루어집니다. 네트워크 (모두 KataGo 공식 네트워크)는 설정의 「네트워크」가 「강함」이면 9줄 바둑판에서는 9줄 전용 kata9x9-b18c384nbt-20231025, 그 밖의 바둑판에서는 kata1-b18c384nbt이고, 「빠름」이면 모든 바둑판에서 g170e-b10c128입니다.\n\n소스 코드: https://github.com/tamaikeiichi/GoAI</string>
+    <string name="about_text">바둑 기보 분석은 무료 오픈 소스 바둑 앱 (5줄~21줄)입니다. AI로 KataGo (https://github.com/lightvector/KataGo)를 사용하며, 모든 처리가 기기 안에서 이루어집니다. 네트워크 (모두 KataGo 공식 네트워크)는 설정의 「네트워크」가 「강함」이면 9줄 바둑판에서는 9줄 전용 kata9x9-b18c384nbt-20231025, 그 밖의 바둑판에서는 kata1-b18c384nbt이고, 「빠름」이면 모든 바둑판에서 g170e-b10c128입니다.\n\n소스 코드: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">따낸 돌 %1$d</string>
     <string name="move_counter">%1$d수 / %2$d수</string>
     <string name="nav_previous">이전</string>

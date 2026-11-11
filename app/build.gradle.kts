@@ -7,6 +7,19 @@ import java.util.zip.GZIPOutputStream
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.play.publisher)
+}
+
+// Google Play へのアップロード (Gradle Play Publisher)。サービスアカウントの鍵の場所は
+// リポジトリに入れず、~/.gradle/gradle.properties の GOAI_PLAY_CREDENTIALS から読む。
+// ./gradlew :app:publishReleaseBundle で署名付き AAB を作って本番トラックに出す。
+// リリースノートは src/main/play/release-notes/<言語>/default.txt。
+play {
+    val credentials = providers.gradleProperty("GOAI_PLAY_CREDENTIALS").orNull
+    enabled.set(credentials != null)
+    if (credentials != null) serviceAccountCredentials.set(file(credentials))
+    track.set("production")
+    defaultToAppBundles.set(true)
 }
 
 android {
@@ -19,8 +32,8 @@ android {
         applicationId = "com.tksoft.goai"
         minSdk = 24
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.3.2"
+        versionCode = 7
+        versionName = "0.3.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
