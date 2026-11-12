@@ -1,0 +1,3 @@
+KataGoを用いて，解析・対局ができます
+完全無料，登録不要，オープンソース
+https://github.com/tamaikeiichi/GoAI

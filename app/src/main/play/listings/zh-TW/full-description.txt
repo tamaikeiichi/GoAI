@@ -1,0 +1,3 @@
+用 KataGo 下圍棋並分析棋局。
+完全免費，無需註冊，無廣告，開源。
+https://github.com/tamaikeiichi/GoAI

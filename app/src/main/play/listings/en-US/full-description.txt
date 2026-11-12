@@ -1,0 +1,3 @@
+Play and analyze Go games with KataGo.
+Completely free, no registration, ad-free, and open source.
+https://github.com/tamaikeiichi/GoAI
