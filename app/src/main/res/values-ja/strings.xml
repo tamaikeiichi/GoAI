@@ -138,4 +138,5 @@
     <string name="ogs_unsupported_board">この盤の大きさには対応していません</string>
     <string name="ogs_error">OGS: %1$s</string>
     <string name="ogs_about">ネット対局には online-go.com (OGS) を使います。このアプリは OGS とは関係のない個人の開発です。OGS の規約では対局中の碁ソフトの助けが禁止されているので、OGS の対局中は AI (解析・読み筋・終局判定) を使えません。</string>
+    <string name="ogs_rules_any">こだわらない</string>
 </resources>

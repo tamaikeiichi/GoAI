@@ -138,4 +138,5 @@
     <string name="ogs_unsupported_board">This board size is not supported</string>
     <string name="ogs_error">OGS: %1$s</string>
     <string name="ogs_about">Online games are played on online-go.com (OGS). This app is not affiliated with OGS. During an OGS game the AI (analysis, hints and scoring) is turned off, because the OGS rules forbid computer help in ongoing games.</string>
+    <string name="ogs_rules_any">Any</string>
 </resources>

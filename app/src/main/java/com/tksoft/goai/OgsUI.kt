@@ -140,7 +140,7 @@ private fun ogsPrefsSummary(p: OgsMatchPrefs): String {
         sizes.joinToString("・"),
         speeds.joinToString("・"),
         stringResource(if (p.system == OgsTimeSystem.BYOYOMI) R.string.ogs_byoyomi else R.string.ogs_fischer),
-        stringResource(if (p.rules == Rules.JAPANESE) R.string.rules_japanese else R.string.rules_chinese),
+        stringResource(ogsRulesLabel(p.rules)),
     ).joinToString(" / ")
 }
 
@@ -206,9 +206,9 @@ fun OgsMatchSettingsDialog(
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.rules), style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Rules.entries.forEach { r ->
-                        val label = if (r == Rules.JAPANESE) R.string.rules_japanese else R.string.rules_chinese
-                        FilterChip(p.rules == r, { p = p.copy(rules = r) }, { Text(stringResource(label)) })
+                    // null は「こだわらない」
+                    (Rules.entries + null).forEach { r ->
+                        FilterChip(p.rules == r, { p = p.copy(rules = r) }, { Text(stringResource(ogsRulesLabel(r))) })
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -273,4 +273,10 @@ fun OgsStoneRemovalCard(onAccept: () -> Unit, onResume: () -> Unit, modifier: Mo
             }
         }
     }
+}
+
+private fun ogsRulesLabel(r: Rules?) = when (r) {
+    Rules.JAPANESE -> R.string.rules_japanese
+    Rules.CHINESE -> R.string.rules_chinese
+    null -> R.string.ogs_rules_any
 }

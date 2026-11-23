@@ -138,4 +138,5 @@
     <string name="ogs_unsupported_board">不支持此棋盘大小</string>
     <string name="ogs_error">OGS：%1$s</string>
     <string name="ogs_about">网络对局使用 online-go.com（OGS）。本应用与 OGS 无关。OGS 规则禁止在进行中的对局里借助电脑，因此 OGS 对局中不能使用 AI（分析、变化图、判定胜负）。</string>
+    <string name="ogs_rules_any">不限</string>
 </resources>

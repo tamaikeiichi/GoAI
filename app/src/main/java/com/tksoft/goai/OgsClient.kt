@@ -56,7 +56,8 @@ data class OgsMatchPrefs(
     val sizes: Set<Int> = setOf(9),
     val speeds: Set<OgsSpeed> = setOf(OgsSpeed.RAPID),
     val system: OgsTimeSystem = OgsTimeSystem.BYOYOMI,
-    val rules: Rules = Rules.JAPANESE,
+    /** null はルールにこだわらない (相手が決めたルールで打つ) */
+    val rules: Rules? = Rules.JAPANESE,
     val handicap: OgsHandicap = OgsHandicap.STANDARD,
     /** 相手の棋力の幅 (自分より何段級下・上まで) */
     val lowerRankDiff: Int = 3,
@@ -73,7 +74,11 @@ data class OgsMatchPrefs(
             .put("size_speed_options", options)
             .put("lower_rank_diff", lowerRankDiff)
             .put("upper_rank_diff", upperRankDiff)
-            .put("rules", JSONObject().put("condition", "required").put("value", rules.gtp))
+            .put(
+                "rules",
+                if (rules == null) JSONObject().put("condition", "no-preference").put("value", Rules.JAPANESE.gtp)
+                else JSONObject().put("condition", "required").put("value", rules.gtp),
+            )
             .put(
                 "handicap",
                 JSONObject()
@@ -87,7 +92,7 @@ data class OgsMatchPrefs(
             .putString("sizes", sizes.joinToString(","))
             .putString("speeds", speeds.joinToString(",") { it.name })
             .putString("system", system.name)
-            .putString("rules", rules.name)
+            .putString("rules", rules?.name ?: RULES_ANY)
             .putString("handicap", handicap.name)
             .putInt("lowerRankDiff", lowerRankDiff)
             .putInt("upperRankDiff", upperRankDiff)
@@ -97,6 +102,7 @@ data class OgsMatchPrefs(
     companion object {
         val SIZES = listOf(9, 13, 19)
         const val MAX_RANK_DIFF = 9
+        private const val RULES_ANY = "ANY"
 
         fun load(prefs: SharedPreferences): OgsMatchPrefs {
             val d = OgsMatchPrefs()
@@ -108,7 +114,11 @@ data class OgsMatchPrefs(
                 sizes = sizes,
                 speeds = speeds,
                 system = prefs.getString("system", null)?.let { runCatching { OgsTimeSystem.valueOf(it) }.getOrNull() } ?: d.system,
-                rules = prefs.getString("rules", null)?.let { runCatching { Rules.valueOf(it) }.getOrNull() } ?: d.rules,
+                rules = when (val r = prefs.getString("rules", null)) {
+                    RULES_ANY -> null
+                    null -> d.rules
+                    else -> runCatching { Rules.valueOf(r) }.getOrNull() ?: d.rules
+                },
                 handicap = prefs.getString("handicap", null)?.let { runCatching { OgsHandicap.valueOf(it) }.getOrNull() } ?: d.handicap,
                 lowerRankDiff = prefs.getInt("lowerRankDiff", d.lowerRankDiff).coerceIn(0, MAX_RANK_DIFF),
                 upperRankDiff = prefs.getInt("upperRankDiff", d.upperRankDiff).coerceIn(0, MAX_RANK_DIFF),

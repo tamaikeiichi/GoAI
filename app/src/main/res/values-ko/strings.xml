@@ -138,4 +138,5 @@
     <string name="ogs_unsupported_board">이 크기의 바둑판은 지원하지 않습니다</string>
     <string name="ogs_error">OGS: %1$s</string>
     <string name="ogs_about">온라인 대국에는 online-go.com (OGS)을 사용합니다. 이 앱은 OGS와 관계가 없습니다. OGS 규약은 진행 중인 대국에서 컴퓨터의 도움을 금지하므로, OGS 대국 중에는 AI(분석·수읽기·계가)를 쓸 수 없습니다.</string>
+    <string name="ogs_rules_any">상관없음</string>
 </resources>
