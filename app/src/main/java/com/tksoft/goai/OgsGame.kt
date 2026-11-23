@@ -34,6 +34,8 @@ class OgsGame(val id: Long) {
     var whiteId = 0L
     var blackName = ""
     var whiteName = ""
+    /** レーティングに数える対局か */
+    var ranked = false
     /** 自分の石の色。自分の対局でなければ null */
     var myColor by mutableStateOf<Stone?>(null)
     /** サーバーが受け付けた手 (自由置石の置石も含む) */

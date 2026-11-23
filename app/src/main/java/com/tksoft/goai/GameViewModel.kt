@@ -1,5 +1,7 @@
 package com.tksoft.goai
 
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import android.app.Application
 import android.content.Context
 import android.os.SystemClock
@@ -247,6 +249,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
 
     fun dismissJudgementPopup() {
         judgementPopup = null
+        ogsRatingChange = null
     }
 
     /** 盤に出す結果: 終局判定をした局面ではその結果、そうでなければ終局した局面の結果 */
@@ -806,6 +809,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
                 if (r != null) {
                     judgementNode = node
                     judgement = r
+                    ogsRatingChange = null
                     judgementPopup = r
                 }
             } finally {
@@ -1159,6 +1163,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         judgement = null
         judgementNode = null
         ogsGame = OgsGame(id)
+        ogsRatingBefore = ogsUser?.rating ?: Double.NaN
         // 新しい棋譜として過去の棋譜に保存する
         historyId = null
         gameDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
@@ -1188,6 +1193,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
             else -> Rules.CHINESE // 中国・AGA・ニュージーランド・応昌期ルールはどれも地と石を数える
         }
         g.handicap = obj.optInt("handicap", 0)
+        g.ranked = obj.optBoolean("ranked", false)
         g.freeHandicap = obj.optBoolean("free_handicap_placement", false)
         g.initialBlack = obj.optJSONObject("initial_state")?.optString("black", "")
             ?.let { OgsCoord.decodePoints(it, width) } ?: emptyList()
@@ -1215,6 +1221,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         g.removed = OgsCoord.decodePoints(obj.optString("removed", ""), width).toSet()
         blackName = bName.ifEmpty { str(R.string.default_black_name) }
         whiteName = wName.ifEmpty { str(R.string.default_white_name) }
+        fetchOgsFlags(listOf(bId to bName, wId to wName))
         settings = settings.copy(
             boardSize = width, komi = g.komi, rules = g.rules,
             handicap = g.initialBlack.size.coerceAtMost(maxHandicap(width)),
@@ -1380,6 +1387,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
             currentNode.result = GameResult(code, g.removed)
             // 「黒 3.5 目勝ち」などをポップアップで知らせる
             judgementPopup = currentNode.result
+            if (g.ranked && g.myColor != null) showOgsRatingChange()
         } else message = str(R.string.ogs_game_canceled)
         ogs.send("game/disconnect", JSONObject().put("game_id", g.id))
         ogsGame = null
@@ -1389,6 +1397,64 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
             delay(1000)
             if (ogsGame == null && !ogsSearching) ogs.disconnect()
             configureEngine()
+        }
+    }
+
+    /**
+     * OGS のユーザー名 → 国旗の絵文字。対局のあと棋譜を開き直しても名前の左に国旗を出せるよう、端末に覚えておく
+     * (名前を手で書き換えたときなど、OGS のユーザー名と違えば出さない)
+     */
+    var ogsFlags by mutableStateOf(loadOgsFlags())
+        private set
+
+    private fun loadOgsFlags(): Map<String, String> = runCatching {
+        val o = JSONObject(ogsPrefs.getString("flags", null) ?: return@runCatching emptyMap())
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }.getOrDefault(emptyMap())
+
+    /** 名前の欄に対応する国旗 (無ければ null) */
+    fun flagOf(name: String): String? = ogsFlags[OgsCoord.usernameOf(name)]
+
+    /** 対局者の国を OGS から取り、まだ知らない人の分だけ覚える */
+    private fun fetchOgsFlags(players: List<Pair<Long, String>>) {
+        val todo = players.filter { (id, name) -> id > 0 && name.isNotEmpty() && OgsCoord.usernameOf(name) !in ogsFlags }
+        if (todo.isEmpty()) return
+        viewModelScope.launch {
+            for ((id, name) in todo) {
+                val flag = OgsCoord.flag(runCatching { ogs.fetchCountry(id) }.getOrNull()) ?: continue
+                ogsFlags = ogsFlags + (OgsCoord.usernameOf(name) to flag)
+            }
+            // 増えすぎないよう、最近の 200 人だけ残す
+            val keep = ogsFlags.entries.toList().takeLast(200)
+            ogsFlags = keep.associate { it.key to it.value }
+            ogsPrefs.edit().putString("flags", JSONObject(ogsFlags as Map<*, *>).toString()).apply()
+        }
+    }
+
+    /** 対局を始める前の自分のレーティング */
+    private var ogsRatingBefore = Double.NaN
+
+    /** 終局のポップアップに出す自分のレーティングの変動 (前, 後)。後はサーバーが計算し終えるまで null */
+    var ogsRatingChange by mutableStateOf<Pair<Int, Int?>?>(null)
+        private set
+
+    /** 終局の後、レーティングが変わるまで少し待ちながら取り直す */
+    private fun showOgsRatingChange() {
+        val before = ogsRatingBefore
+        val id = ogsUser?.id ?: return
+        if (before.isNaN()) return
+        val change = before.roundToInt() to null
+        ogsRatingChange = change
+        viewModelScope.launch {
+            var after: Double? = null
+            for (i in 0 until 10) {
+                delay(2000)
+                after = runCatching { ogs.fetchRating(id) }.getOrNull() ?: after
+                if (after != null && abs(after - before) > 0.01) break
+            }
+            if (ogsRatingChange !== change) return@launch // ポップアップを閉じた
+            ogsRatingChange = after?.let { before.roundToInt() to it.roundToInt() }
+            ogsUser = ogsUser?.let { u -> after?.let { u.copy(rating = it) } ?: u }
         }
     }
 

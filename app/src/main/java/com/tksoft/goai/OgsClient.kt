@@ -152,6 +152,19 @@ object OgsCoord {
         return if (x < 0 || y < 0) Move.Pass else Move.Play(x, y)
     }
 
+    /**
+     * OGS の国のコード ("jp" など) を国旗の絵文字にする。国を登録していない ("un") ときや、
+     * OGS 独自のコード (2文字の英字でないもの) は null
+     */
+    fun flag(country: String?): String? {
+        val c = country?.trim()?.lowercase() ?: return null
+        if (c.length != 2 || !c.all { it in 'a'..'z' } || c == "un") return null
+        return c.map { String(Character.toChars(0x1F1E6 + (it - 'a'))) }.joinToString("")
+    }
+
+    /** 名前の欄 ("tamaikeiichi [6k]") から OGS のユーザー名だけを取り出す */
+    fun usernameOf(name: String): String = name.substringBefore(" [")
+
     /** OGS の棋力 (30 が初段) を "5k" "2d" のように書く */
     fun rankText(ranking: Double): String? {
         if (ranking.isNaN() || ranking < 0) return null
@@ -220,6 +233,18 @@ class OgsClient(
             val rating = ratingOf(user) ?: runCatching { fetchJson("$OGS_HOST/api/v1/players/$id", cookies) }.getOrNull()?.let { ratingOf(it) }
             OgsUser(id, user.optString("username"), user.optDouble("ranking", Double.NaN), rating ?: Double.NaN)
         }
+    }
+
+    /** 公開のプロフィールから登録している国 ("jp" など) を取る */
+    suspend fun fetchCountry(id: Long): String? = withContext(Dispatchers.IO) {
+        val cookies = runCatching { CookieManager.getInstance().getCookie(OGS_HOST) }.getOrNull()
+        fetchJson("$OGS_HOST/api/v1/players/$id", cookies).optString("country").ifEmpty { null }
+    }
+
+    /** 公開のプロフィールから今のレーティングを取る (対局の後の変動を見るため) */
+    suspend fun fetchRating(id: Long): Double? = withContext(Dispatchers.IO) {
+        val cookies = runCatching { CookieManager.getInstance().getCookie(OGS_HOST) }.getOrNull()
+        ratingOf(fetchJson("$OGS_HOST/api/v1/players/$id", cookies))
     }
 
     private fun ratingOf(o: JSONObject): Double? =

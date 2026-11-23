@@ -122,6 +122,8 @@ fun PvInfoCard(
 fun PlayerStatusSection(
     name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "",
     komi: Double = 0.0,
+    /** 名前の左に出す国旗の絵文字 (OGS の対局者) */
+    flag: String? = null,
     timeLeft: String? = null,
     onNameClick: () -> Unit = {},
     alignStart: Boolean = false,
@@ -139,6 +141,7 @@ fun PlayerStatusSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             StoneIcon(stone, Modifier.size(18.dp))
+            if (flag != null) Text(flag, style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = name,
                 style = MaterialTheme.typography.titleMedium,

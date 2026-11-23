@@ -391,7 +391,12 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     val boardWidth = minOf(maxWidth - menuWidth - minSideWidth - gap * 2, maxHeight / BOARD_CELL_ASPECT)
                         .coerceAtLeast(0.dp)
                     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
+                        // メニューボタンの列の下 (盤の左下) に、使っているルールを小さく書く
+                        Column(Modifier.width(menuWidth).fillMaxHeight()) {
+                            MenuButton(Modifier.padding(top = 4.dp)) { showMenu = true }
+                            Spacer(Modifier.weight(1f))
+                            RulesLabel(vm)
+                        }
                         Board(vm, Modifier.width(boardWidth))
                         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                             Row(verticalAlignment = Alignment.Top) {
@@ -642,7 +647,19 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     vm.judgementPopup?.let { r ->
         AlertDialog(
             onDismissRequest = vm::dismissJudgementPopup,
-            text = { Text(resultText(r.code), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(resultText(r.code), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    // OGS の対局の後は、自分のレーティングの変動 (「1511 → 1523」。計算を待つ間は「1511 → …」)
+                    vm.ogsRatingChange?.let { (before, after) ->
+                        Text(
+                            "$before → ${after ?: "…"}",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            },
             confirmButton = { TextButton(onClick = vm::dismissJudgementPopup) { Text("OK") } },
         )
     }
@@ -906,7 +923,22 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onBoardBounds:
     PlayerSection(vm, top = true, onEditName = onEditName)
     Board(vm, boardModifier.fillMaxWidth().onGloballyPositioned { onBoardBounds(it.boundsInWindow()) })
     PvReplayNote(vm)
-    PlayerSection(vm, top = false, onEditName = onEditName)
+    // 盤の左下 (下の対局者の表示の左の空き) に、使っているルールを小さく書く
+    Box(modifier = Modifier.fillMaxWidth()) {
+        PlayerSection(vm, top = false, onEditName = onEditName)
+        RulesLabel(vm, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 4.dp))
+    }
+}
+
+/** 使っているルール (日本ルール・中国ルール) を小さく書く */
+@Composable
+private fun RulesLabel(vm: GameViewModel, modifier: Modifier = Modifier) {
+    Text(
+        stringResource(if (vm.settings.rules == Rules.JAPANESE) R.string.rules_japanese else R.string.rules_chinese),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -922,6 +954,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
     val turn = if (result == null) game.toPlay else null
     PlayerStatusSection(
         name = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone),
+        flag = vm.flagOf(if (stone == Stone.BLACK) vm.blackName else vm.whiteName),
         stone = stone,
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
         komi = vm.settings.komi,
@@ -1014,6 +1047,7 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         StoneIcon(stone, Modifier.size(18.dp))
+        vm.flagOf(if (stone == Stone.BLACK) vm.blackName else vm.whiteName)?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         Text(
             text = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone),
             style = MaterialTheme.typography.titleMedium,

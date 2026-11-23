@@ -27,6 +27,16 @@ class OgsCoordTest {
     }
 
     @Test
+    fun flags() {
+        assertEquals("🇯🇵", OgsCoord.flag("jp"))
+        assertEquals("🇺🇸", OgsCoord.flag("US"))
+        assertNull(OgsCoord.flag("un"))
+        assertNull(OgsCoord.flag("_Pirate"))
+        assertNull(OgsCoord.flag(null))
+        assertEquals("tamaikeiichi", OgsCoord.usernameOf("tamaikeiichi [6k]"))
+    }
+
+    @Test
     fun ranks() {
         assertEquals("1d", OgsCoord.rankText(30.0))
         assertEquals("1k", OgsCoord.rankText(29.4))
