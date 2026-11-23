@@ -246,6 +246,8 @@ fun KifuTreeSection(
     currentNode: GoNode,
     currentPath: List<GoNode>,
     moveTime: String? = null,
+    /** false なら左右の矢印をグレーにして押せなくする (OGS の対局中) */
+    navEnabled: Boolean = true,
     onNodeChange: (GoNode) -> Unit
 ) {
     val currentIndex = currentPath.indexOf(currentNode).coerceAtLeast(0)
@@ -274,32 +276,22 @@ fun KifuTreeSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                    .repeatingClickable(enabled = currentIndex > 0) { if (currentIndex > 0) onNodeChange(currentPath[currentIndex - 1]) },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.nav_previous),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.size(20.dp)) }
+            NavArrow(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.nav_previous), 36.dp, navEnabled, currentIndex > 0) {
+                if (currentIndex > 0) onNodeChange(currentPath[currentIndex - 1])
+            }
 
             KifuTreeView(
                 currentNode = currentNode,
                 currentPath = currentPath,
-                onNodeChange = onNodeChange,
+                // 矢印をグレーにしているときは、樹形図をタップしても手順を動かさない (スクロール・拡大縮小はできる)
+                onNodeChange = { if (navEnabled) onNodeChange(it) },
                 zoomHandler = zoomHandler,
                 modifier = Modifier.weight(1f)
             )
 
-            Box(
-                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.secondaryContainer)
-                    .repeatingClickable(enabled = currentIndex < maxIndex) { if (currentIndex < maxIndex) onNodeChange(currentPath[currentIndex + 1]) },
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.nav_next), tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp)) }
+            NavArrow(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.nav_next), 36.dp, navEnabled, currentIndex < maxIndex) {
+                if (currentIndex < maxIndex) onNodeChange(currentPath[currentIndex + 1])
+            }
         }
     }
 }
@@ -606,4 +598,30 @@ fun capturesText(stone: Stone, captures: Int, komi: Double): String {
     if (gets <= 0.0) return stringResource(R.string.captures_one, captures)
     val k = if (gets % 1.0 == 0.0) gets.toLong().toString() else gets.toString()
     return stringResource(R.string.captures_komi, captures, k)
+}
+
+/**
+ * 前の手・次の手の丸い矢印ボタン (長押しで連続)。shown が false ならグレーにして押せなくする。
+ * 端まで来て進めないとき (canMove が false) は、見た目はそのままで押しても何もしない
+ */
+@Composable
+fun NavArrow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, size: androidx.compose.ui.unit.Dp,
+    shown: Boolean, canMove: Boolean, onClick: () -> Unit,
+) {
+    val c = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(50))
+            .background(if (shown) c.secondaryContainer else c.onSurface.copy(alpha = 0.12f))
+            .repeatingClickable(enabled = shown && canMove, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            icon, contentDescription = description,
+            tint = if (shown) c.onSecondaryContainer else c.onSurface.copy(alpha = 0.38f),
+            modifier = Modifier.size(20.dp),
+        )
+    }
 }
