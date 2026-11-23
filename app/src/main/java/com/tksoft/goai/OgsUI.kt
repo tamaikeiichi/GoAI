@@ -162,7 +162,16 @@ fun OgsMatchSettingsDialog(
     var p by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.ogs_match_settings)) },
+        // ログインしていれば、タイトルにアカウント名・段級位・レーティングを出す
+        title = {
+            if (user == null) Text(stringResource(R.string.ogs_match_settings))
+            else {
+                // 「アカウント名 [段級位] レーティング」
+                val rank = OgsCoord.rankText(user.ranking)?.let { " [$it]" } ?: ""
+                val rating = user.rating.takeIf { !it.isNaN() }?.let { " ${it.roundToInt()}" } ?: ""
+                Text(user.username + rank + rating)
+            }
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.ogs_board_size), style = MaterialTheme.typography.labelLarge)
@@ -224,13 +233,9 @@ fun OgsMatchSettingsDialog(
                 }
                 if (user != null) {
                     Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            stringResource(R.string.ogs_signed_in_as, user.username),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(onClick = onSignOut) { Text(stringResource(R.string.ogs_sign_out)) }
+                    // アカウント名はタイトルに出しているので、ここはログアウトのボタンだけ
+                    TextButton(onClick = onSignOut, modifier = Modifier.align(Alignment.End)) {
+                        Text(stringResource(R.string.ogs_sign_out))
                     }
                 }
             }

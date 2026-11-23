@@ -28,6 +28,7 @@
     <string name="komi">Komi</string>
     <string name="about_text">Go Game Analysis is a free, open source Go app (5x5 to 21x21). The AI is KataGo (https://github.com/lightvector/KataGo) running entirely on your device, with official KataGo networks: with the "Strong" network setting, kata9x9-b18c384nbt-20231025 on 9x9 and kata1-b18c384nbt on other boards; with "Fast", g170e-b10c128 on every board.\n\nSource code: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">Captures: %1$d</string>
+    <string name="captures_komi">Captures: %1$d + komi %2$s</string>
     <string name="move_counter">Move %1$d / %2$d</string>
     <string name="nav_previous">Previous</string>
     <string name="nav_next">Next</string>
@@ -127,7 +128,6 @@
     <string name="ogs_rank_range">Opponent\'s rank</string>
     <string name="ogs_rank_lower">Down to %1$d ranks below you</string>
     <string name="ogs_rank_upper">Up to %1$d ranks above you</string>
-    <string name="ogs_signed_in_as">Signed in as %1$s</string>
     <string name="ogs_sign_out">Sign out</string>
     <string name="ogs_stone_removal">Tap dead stones to mark them, then accept.</string>
     <string name="ogs_accept">Accept</string>

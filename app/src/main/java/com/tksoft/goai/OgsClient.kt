@@ -39,7 +39,8 @@ private const val OGS_SOCKET_URL = "wss://online-go.com/"
 const val OGS_SIGN_IN_URL = "$OGS_HOST/sign-in"
 
 /** ログイン中の OGS の利用者 */
-data class OgsUser(val id: Long, val username: String, val ranking: Double)
+/** ranking は OGS の段級位 (30 = 初段)、rating は Glicko-2 のレーティング (分からなければ NaN) */
+data class OgsUser(val id: Long, val username: String, val ranking: Double, val rating: Double = Double.NaN)
 
 /** 自動マッチングの速さ (OGS の speed)。通信対局 (correspondence) はこのアプリでは扱わない */
 enum class OgsSpeed(val api: String) { BLITZ("blitz"), RAPID("rapid"), LIVE("live") }
@@ -204,7 +205,23 @@ class OgsClient(
             }
             jwt = config.optString("user_jwt", "")
             if (jwt.isEmpty()) return@use null
-            OgsUser(user.getLong("id"), user.optString("username"), user.optDouble("ranking", Double.NaN))
+            val id = user.getLong("id")
+            // レーティングは ui/config に無ければ、公開のプロフィールから取る
+            val rating = ratingOf(user) ?: runCatching { fetchJson("$OGS_HOST/api/v1/players/$id", cookies) }.getOrNull()?.let { ratingOf(it) }
+            OgsUser(id, user.optString("username"), user.optDouble("ranking", Double.NaN), rating ?: Double.NaN)
+        }
+    }
+
+    private fun ratingOf(o: JSONObject): Double? =
+        o.optJSONObject("ratings")?.optJSONObject("overall")?.optDouble("rating", Double.NaN)?.takeIf { !it.isNaN() }
+
+    private fun fetchJson(url: String, cookies: String?): JSONObject {
+        val request = Request.Builder().url(url)
+            .apply { if (!cookies.isNullOrEmpty()) header("Cookie", cookies) }
+            .build()
+        return http.newCall(request).execute().use { r ->
+            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+            JSONObject(r.body?.string() ?: throw IOException("empty response"))
         }
     }
 

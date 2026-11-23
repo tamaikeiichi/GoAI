@@ -924,6 +924,7 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         name = playerName(if (stone == Stone.BLACK) vm.blackName else vm.whiteName, stone),
         stone = stone,
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
+        komi = vm.settings.komi,
         isActive = turn == stone,
         gameResult = if (!top) result?.let { resultText(it.code) } ?: "" else "",
         timeLeft = timeLeftText(vm, stone),
@@ -1020,7 +1021,7 @@ private fun PlayerChip(vm: GameViewModel, stone: Stone, onEditName: (Stone) -> U
             maxLines = 1
         )
         Text(
-            text = stringResource(R.string.captures_one, if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite),
+            text = capturesText(stone, if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite, vm.settings.komi),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1

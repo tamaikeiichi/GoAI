@@ -121,6 +121,7 @@ fun PvInfoCard(
 @Composable
 fun PlayerStatusSection(
     name: String, stone: Stone, captures: Int, isActive: Boolean, gameResult: String = "",
+    komi: Double = 0.0,
     timeLeft: String? = null,
     onNameClick: () -> Unit = {},
     alignStart: Boolean = false,
@@ -146,7 +147,7 @@ fun PlayerStatusSection(
             )
         }
         Text(
-            text = stringResource(R.string.captures_one, captures),
+            text = capturesText(stone, captures, komi),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 8.dp)
@@ -590,4 +591,16 @@ private fun KifuTreeSectionPreview() {
     GoAITheme {
         KifuTreeSection(currentNode = node, currentPath = path, onNodeChange = { node = it })
     }
+}
+
+/**
+ * アゲハマの表示。コミをもらう側 (ふつうは白) には「アゲハマ 2 + コミ 6.5」のようにコミを足して書く。
+ * 負のコミは黒がもらうので黒の側に書く
+ */
+@Composable
+fun capturesText(stone: Stone, captures: Int, komi: Double): String {
+    val gets = if (stone == Stone.WHITE) komi else -komi
+    if (gets <= 0.0) return stringResource(R.string.captures_one, captures)
+    val k = if (gets % 1.0 == 0.0) gets.toLong().toString() else gets.toString()
+    return stringResource(R.string.captures_komi, captures, k)
 }

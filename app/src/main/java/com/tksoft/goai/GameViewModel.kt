@@ -1365,8 +1365,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
             else -> null
         }
         val o = obj.optString("outcome", "").lowercase()
+        // 持碁は勝者がなく、outcome が "Tie" や "0 points" になる。それ以外で勝者がなければ取り消された対局
+        val tie = listOf("tie", "jigo", "draw").any { it in o } || Regex("^0(\\.0+)? point").containsMatchIn(o)
         val code = when {
-            winner == null -> null
+            winner == null -> if (tie) "0" else null
             "resign" in o -> "${winner.gtp}+R"
             "time" in o -> "${winner.gtp}+T"
             "point" in o -> Regex("[0-9]+(\\.[0-9]+)?").find(o)?.value?.let { "${winner.gtp}+$it" } ?: "${winner.gtp}+"

@@ -28,6 +28,7 @@
     <string name="komi">贴目</string>
     <string name="about_text">围棋棋谱分析是一款免费、开源的围棋应用 (5路至21路)。AI 使用 KataGo (https://github.com/lightvector/KataGo)，全部在设备上运行。网络 (均为 KataGo 官方网络)：设置中的“网络”为“强”时，9路棋盘使用 9路专用的 kata9x9-b18c384nbt-20231025，其他棋盘使用 kata1-b18c384nbt；为“快”时，所有棋盘都使用 g170e-b10c128。\n\n源代码: https://github.com/tamaikeiichi/GoAI</string>
     <string name="captures_one">提子 %1$d</string>
+    <string name="captures_komi">提子 %1$d + 贴目 %2$s</string>
     <string name="move_counter">第%1$d手 / 共%2$d手</string>
     <string name="nav_previous">上一步</string>
     <string name="nav_next">下一步</string>
@@ -127,7 +128,6 @@
     <string name="ogs_rank_range">对手棋力</string>
     <string name="ogs_rank_lower">最低比我低 %1$d 级（段）</string>
     <string name="ogs_rank_upper">最高比我高 %1$d 级（段）</string>
-    <string name="ogs_signed_in_as">已登录：%1$s</string>
     <string name="ogs_sign_out">退出登录</string>
     <string name="ogs_stone_removal">点击死子进行标记，然后同意。</string>
     <string name="ogs_accept">同意</string>
