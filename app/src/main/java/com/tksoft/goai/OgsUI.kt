@@ -2,6 +2,7 @@ package com.tksoft.goai
 
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
@@ -89,8 +90,22 @@ fun OgsLoginDialog(onPage: () -> Unit, onDismiss: () -> Unit) {
                                     onPage()
                                 }
 
+                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                    val url = request?.url?.toString() ?: return false
+                                    if (!isOgsRegisterUrl(url)) return false
+                                    openInBrowser(context, url)
+                                    return true
+                                }
+
                                 // OGS の画面はページを読み直さずに移ることがあるので、履歴が変わったときも確かめる
                                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                    // 新規登録の画面はアプリの中では開かない (アカウントは OGS のサイトで作ってもらう)。
+                                    // ブラウザで開き、この画面はログインに戻す
+                                    if (url != null && isOgsRegisterUrl(url)) {
+                                        openInBrowser(context, url)
+                                        view?.loadUrl(OGS_SIGN_IN_URL)
+                                        return
+                                    }
                                     CookieManager.getInstance().flush()
                                     onPage()
                                 }
@@ -279,4 +294,21 @@ private fun ogsRulesLabel(r: Rules?) = when (r) {
     Rules.JAPANESE -> R.string.rules_japanese
     Rules.CHINESE -> R.string.rules_chinese
     null -> R.string.ogs_rules_any
+}
+
+/** OGS の新規登録の画面か (アプリの中ではアカウントを作らせない) */
+private fun isOgsRegisterUrl(url: String): Boolean {
+    val uri = android.net.Uri.parse(url)
+    val host = uri.host ?: return false
+    return (host == "online-go.com" || host.endsWith(".online-go.com")) &&
+        (uri.path ?: "").trimEnd('/').let { it == "/register" || it.startsWith("/register/") }
+}
+
+private fun openInBrowser(context: android.content.Context, url: String) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
 }
