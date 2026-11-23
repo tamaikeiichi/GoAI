@@ -1,3 +1,3 @@
-• The layout now adapts to portrait, square and landscape screens. On wide screens the board fills the height of the screen.
-• The default player names (Black / White) are now shown in your language.
-• The app is now named "Go Game Analysis".
+• Play on OGS: play people online on online-go.com (OGS) from "Play on OGS" at the top of the menu. You can change the game settings (board size, speed, time control, rules, handicap and opponent's rank) while looking for an opponent.
+• During an OGS game the AI is turned off, because the OGS rules forbid computer help in ongoing games. You can analyze the game after it ends.
+• The komi is now shown next to the captures, and the rules are shown under the board.

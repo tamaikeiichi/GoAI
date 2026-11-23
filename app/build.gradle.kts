@@ -32,8 +32,8 @@ android {
         applicationId = "com.tksoft.goai"
         minSdk = 24
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.3.3"
+        versionCode = 8
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
