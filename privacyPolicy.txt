@@ -1,12 +1,12 @@
 Privacy Policy for GoAI
-Last Updated: October 30, 2026
+Last Updated: November 22, 2026
 
 (日本語は英語の後にあります)
 
 GoAI (hereinafter referred to as "the App") is an Android application developed by Keiichi Tamai (hereinafter referred to as "the Developer").
 
 1. Information Collection and Use
-The App does not collect, store on any server, or transmit any personally identifiable information. The App does not use the Internet and does not request the Internet permission: the Go AI (KataGo) and its neural networks run entirely on the User's device.
+The Developer does not collect any personally identifiable information, and the App sends nothing to the Developer. The Go AI (KataGo) and its neural networks run entirely on the User's device. The App uses the Internet only when the User chooses "Play on OGS" (see section 2).
 
 The following data is stored only on the User's device, in the App's private storage:
 - Settings: board size, rules, komi, handicap, think time, stone placement method, and similar options.
@@ -19,16 +19,17 @@ Data leaves the App only when the User explicitly does one of the following:
 - Share: the game record (SGF) is passed to the app the User selects in the Android share sheet.
 - Copy / Load: the game record is copied to or read from the clipboard.
 - Export / Import: all game records are written to, or read from, a file at a location the User selects.
-What happens to the data after that is governed by the app or service the User chose.
+- Play on OGS: the App connects to online-go.com (OGS), an online Go server run by a third party. The User signs in on OGS's own sign-in page, shown inside the App; the username and password go directly to OGS, and the App does not store them. OGS's sign-in session (cookies) is kept in the App's private storage until the User signs out. While searching for and playing a game, the App sends OGS the game settings the User chose, the User's moves, resignation and dead-stone choices, and receives the game from OGS. The game record is then saved on the device like other games.
+What happens to the data after that is governed by the app or service the User chose. For OGS, see OGS's terms of service and privacy policy at https://online-go.com.
 
 3. Android Backup
 If the User has enabled Android backup on the device, Android may include the App's settings and game records in the User's own device backup (for example, Google's backup service). This backup is managed by Android and the backup service under the User's account; the Developer cannot access it.
 
 4. Permissions
-The App does not request any special permissions.
+The App requests only the Internet permission, which it uses only for playing on OGS.
 
 5. Third-Party Services
-The App does not use advertising networks, analytics tools, crash reporting services, or SDKs that track user behavior. No data is shared with third parties.
+The App does not use advertising networks, analytics tools, crash reporting services, or SDKs that track user behavior. Apart from OGS when the User chooses to play there, no data is shared with third parties.
 
 6. Children's Privacy
 The App does not collect any personal information from anyone, including children.
@@ -43,12 +44,12 @@ If you have any questions about this Privacy Policy, please contact the Develope
 ----------------------------------------------------------------
 
 GoAI プライバシーポリシー
-最終更新日: 2026年10月30日
+最終更新日: 2026年11月22日
 
 GoAI（以下「本アプリ」）は、Keiichi Tamai（以下「開発者」）が開発した Android アプリです。
 
 1. 情報の収集と利用
-本アプリは、個人を特定できる情報を収集せず、サーバーに保存も送信もしません。本アプリはインターネットを使わず、インターネットの権限も要求しません。囲碁 AI（KataGo）とそのニューラルネットワークは、すべて利用者の端末の中で動きます。
+開発者は、個人を特定できる情報を収集しません。本アプリが開発者に何かを送ることもありません。囲碁 AI（KataGo）とそのニューラルネットワークは、すべて利用者の端末の中で動きます。本アプリがインターネットを使うのは、利用者が「OGSで対局」を選んだときだけです（2. を参照）。
 
 次のデータは、利用者の端末内の本アプリ専用の領域にだけ保存されます。
 - 設定: 盤の大きさ、ルール、コミ、置き石、思考時間、石の置き方など
@@ -61,16 +62,17 @@ GoAI（以下「本アプリ」）は、Keiichi Tamai（以下「開発者」）
 - 共有: 棋譜（SGF）を、Android の共有画面で利用者が選んだアプリに渡します
 - コピー・読み込み: 棋譜をクリップボードにコピーし、またはクリップボードから読み込みます
 - エクスポート・インポート: すべての棋譜を、利用者が選んだ場所のファイルに書き出し、またはそこから読み込みます
-その後のデータの扱いは、利用者が選んだアプリやサービスによります。
+- OGS で対局: 第三者が運営する囲碁サーバー online-go.com（OGS）に接続します。ログインは本アプリの中に表示する OGS 自身のログイン画面で行い、ユーザー名とパスワードは OGS に直接送られ、本アプリは保存しません。OGS のログイン状態（Cookie）は、ログアウトするまで本アプリ専用の領域に保存されます。対局相手を探す間と対局中は、利用者が選んだ対局条件、利用者の着手・投了・死に石の選択を OGS に送り、対局の内容を OGS から受け取ります。対局の棋譜は、ほかの棋譜と同じく端末に保存されます。
+その後のデータの扱いは、利用者が選んだアプリやサービスによります。OGS については、https://online-go.com の利用規約とプライバシーポリシーをご覧ください。
 
 3. Android のバックアップ
 利用者が端末で Android のバックアップを有効にしている場合、Android は本アプリの設定と棋譜を、利用者自身の端末のバックアップ（Google のバックアップなど）に含めることがあります。このバックアップは Android とバックアップサービスが利用者のアカウントで管理するもので、開発者はアクセスできません。
 
 4. 権限
-本アプリは、特別な権限を要求しません。
+本アプリが要求する権限は、OGS での対局だけに使うインターネットの権限だけです。
 
 5. 第三者のサービス
-本アプリは、広告、アクセス解析、クラッシュレポート、利用者の行動を追跡する SDK を使いません。第三者とデータを共有しません。
+本アプリは、広告、アクセス解析、クラッシュレポート、利用者の行動を追跡する SDK を使いません。利用者が OGS で対局するときの OGS を除き、第三者とデータを共有しません。
 
 6. 子どものプライバシー
 本アプリは、子どもを含め、誰からも個人情報を収集しません。

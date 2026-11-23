@@ -96,7 +96,7 @@ data class GameResult(
     val ownershipBlack: List<Double>? = null,
 )
 
-class GameViewModel(application: Application) : AndroidViewModel(application) {
+class GameViewModel(application: Application) : AndroidViewModel(application), OgsClient.Listener {
     // 盤の大きさによって使うネットが違うので、ネットを変えるときはエンジンを作り直す
     private var engine = KataGoEngine()
     private var gtp = GtpClient(engine)
@@ -230,6 +230,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        ogs.disconnect()
         gtp.stopAnalysis()
         engine.stop()
     }
@@ -250,14 +251,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 盤に出す結果: 終局判定をした局面ではその結果、そうでなければ終局した局面の結果 */
     val shownResult: GameResult?
-        get() = judgement?.takeIf { judgementNode === currentNode } ?: result
+        get() {
+            // OGS の整地中は、死に石として選ばれている石を示す
+            ogsGame?.takeIf { it.phase == OgsPhase.STONE_REMOVAL }?.let { return GameResult("", it.removed) }
+            return judgement?.takeIf { judgementNode === currentNode } ?: result
+        }
 
     val isPlayingGame: Boolean get() = humanColor != null
 
-    // 検討中は終局した局面からも続きを打てる
+    // 検討中は終局した局面からも続きを打てる。OGS の対局中は、自分の手番で最新の局面を見ているときだけ
     val canPlay: Boolean
-        get() = engineStatus == EngineStatus.Ready && !thinking &&
-            (humanColor == null || (result == null && game.toPlay == humanColor))
+        get() = ogsGame?.let { ogsCanPlay(it) }
+            ?: (engineStatus == EngineStatus.Ready && !thinking &&
+                (humanColor == null || (result == null && game.toPlay == humanColor)))
+
+    /** 盤に出す半透明の石の色 (打てるときだけ)。OGS の自由置石では、手番に関係なく黒 */
+    val ghostColor: Stone?
+        get() = if (!canPlay) null else ogsGame?.myColor ?: game.toPlay
+
+    /** 盤の下に出す対局者 (人と AI の対局・OGS の対局では自分) */
+    val bottomColor: Stone get() = humanColor ?: ogsGame?.myColor ?: Stone.BLACK
 
     /**
      * 表示中の棋譜の盤の大きさと設定のネットワーク (自動解析中は速いネットワーク) でエンジンを用意し、
@@ -284,6 +297,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 設定 (盤の大きさ・思考時間・ルール・コミ・置石・ネット) を保存してエンジンに送る。盤の大きさを変えたらリセットする。
      *  ネットを変えたら、configureEngine (ensureEngine) がエンジンを起動し直す */
     fun applySettings(newSettings: GameSettings) {
+        // OGS の対局中は、盤の大きさ・ルール・コミ・置石は対局のものから変えない (石の置き方などだけ変える)
+        if (ogsGame != null) {
+            settings = newSettings.copy(
+                humanColor = settings.humanColor, boardSize = settings.boardSize, rules = settings.rules,
+                komi = settings.komi, handicap = settings.handicap,
+            )
+            saveSettings(settings)
+            return
+        }
         val sizeChanged = newSettings.boardSize != game.size
         settings = newSettings.copy(humanColor = settings.humanColor)
         saveSettings(settings)
@@ -300,7 +322,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 新しい棋譜にする (ShogiGUI のリセット)。置石は設定のもの */
     fun reset() {
-        if (thinking) return
+        if (thinking || blockedByOgs()) return
         saveKifu()
         stopAnalysis()
         humanColor = null
@@ -323,7 +345,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 本譜 (最初の非 PV 子の列) だけを残し、それ以外の子 (分岐・読み筋) を削除する */
     fun deleteBranches() {
-        if (thinking) return
+        if (thinking || blockedByOgs()) return
         stopAnalysis()
         unpin()
         var n: GoNode? = currentNode.root
@@ -346,7 +368,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 今の局面から、color を持って AI と対局する (ShogiGUI の「先手番を持って対局」) */
     fun playAs(color: Stone) {
-        if (thinking || engineStatus != EngineStatus.Ready) return
+        if (thinking || engineStatus != EngineStatus.Ready || blockedByOgs()) return
         stopAnalysis()
         unpin()
         humanColor = color
@@ -400,11 +422,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     val isOnMainLine: Boolean
         get() = currentNode.pathFromRoot().zipWithNext().all { (p, c) -> p.children.firstOrNull { !it.isPvBranch } === c }
 
-    fun onBoardTap(x: Int, y: Int) = playMove(Move.Play(x, y))
+    fun onBoardTap(x: Int, y: Int) {
+        val g = ogsGame
+        if (g != null && g.phase == OgsPhase.STONE_REMOVAL) ogsToggleRemoved(g, x, y)
+        else playMove(Move.Play(x, y))
+    }
 
     fun pass() = playMove(Move.Pass)
 
     private fun playMove(move: Move) {
+        ogsGame?.let { ogsPlay(it, move); return }
         if (!canPlay) return
         if (autoAnalyzing) stopAutoAnalysis()
         val next = currentNode.childFor(move)
@@ -428,6 +455,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resign() {
+        ogsGame?.let { ogsResign(it); return }
         val hc = humanColor ?: return
         if (!canPlay) return
         currentNode.result = GameResult("${hc.opponent.gtp}+R")
@@ -437,6 +465,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 解析ボタン・メニューの「解析」: 解析中は停止、それ以外は解析を始める。対局中も対局を続けたまま解析できる */
     fun onAnalyzeButton() {
+        if (blockedByOgs()) return
         when {
             autoAnalyzing -> stopAutoAnalysis()
             analyzing -> stopAnalysis()
@@ -449,6 +478,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 「この局面から全て解析」ボタン: 解析中なら止める。対局中 (メニューから) なら対局を中止してから解析する */
     fun onAutoAnalyzeButton() {
+        if (blockedByOgs()) return
         when {
             autoAnalyzing -> stopAutoAnalysis()
             thinking -> return
@@ -550,7 +580,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val single = pausedAnalysis
         pausedAutoAnalysis = false
         pausedAnalysis = false
-        if (!auto && !single) return
+        if (!auto && !single || ogsGame != null) return
         viewModelScope.launch {
             // 止めた探索が終わる (自動解析ならネットワークを戻し終える) のを待ってから始める
             analysisJob?.join()
@@ -568,7 +598,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** クリップボードなどの SGF を読み込んで新しい棋譜にする */
     fun loadSgf(text: String) {
-        if (thinking) return
+        if (thinking || blockedByOgs()) return
         val loaded = try {
             SgfParser.parse(text)
         } catch (e: Exception) {
@@ -656,6 +686,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     /** 読み筋カードに出す解析結果と、その局面 */
     val shownAnalysis: Pair<GoNode, Analysis>?
         get() {
+            // OGS の対局中は AI の読みを一切出さない
+            if (ogsGame != null) return null
             val a = analysis
             val n = analysisNode
             val pn = pinnedNode
@@ -675,7 +707,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      * 読み筋を見るときは解析を止める (全局面の解析も止める)。カードはタップした時点の結果のまま残る
      */
     fun playPv(rank: Int) {
-        if (thinking) return
+        if (thinking || blockedByOgs()) return
         if (autoAnalyzing) stopAutoAnalysis()
         val (branchPoint, a) = shownAnalysis ?: return
         val cand = a.candidates.sortedBy { it.order }.getOrNull(rank - 1) ?: return
@@ -759,7 +791,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** メニューの「終局判定」: 今の局面で打ち終えたとして KataGo に死活を判定させ、結果をポップアップで出す */
     fun judge() {
-        if (engineStatus != EngineStatus.Ready || thinking) return
+        if (engineStatus != EngineStatus.Ready || thinking || blockedByOgs()) return
         if (autoAnalyzing) stopAutoAnalysis()
         val node = currentNode
         viewModelScope.launch {
@@ -870,7 +902,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 「過去の棋譜」を開く。この棋譜を直したら、同じ履歴を上書きする */
     fun openHistory(id: String, r: KifuRecord) {
-        if (thinking) return
+        if (thinking || blockedByOgs()) return
         saveKifu()
         stopAnalysis()
         humanColor = null
@@ -925,5 +957,442 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             .putLong("analysisTimeMs", s.analysisTimeMs)
             .putString("net", s.net.name)
             .apply()
+    }
+
+    // ===== OGS (online-go.com) での対局 =====
+    // OGS の規約では、対局中の碁ソフト・AI による解析は禁止されている。対局中は解析・読み筋・終局判定・AI との対局を止める
+
+    private val ogsPrefs = application.getSharedPreferences("ogs", Context.MODE_PRIVATE)
+    private val ogs = OgsClient(
+        viewModelScope,
+        runCatching { application.packageManager.getPackageInfo(application.packageName, 0).versionName }.getOrNull() ?: "",
+        this,
+    )
+
+    /** 自動マッチングの対局条件 (メニューとマッチング待ちのポップアップから変える) */
+    var ogsMatchPrefs by mutableStateOf(OgsMatchPrefs.load(ogsPrefs))
+        private set
+    /** ログイン中の OGS の利用者 (確かめるまでは null) */
+    var ogsUser by mutableStateOf<OgsUser?>(null)
+        private set
+    /** OGS のログイン画面 (WebView) を出す */
+    var ogsShowLogin by mutableStateOf(false)
+        private set
+    /** ログインしているか確かめている */
+    var ogsChecking by mutableStateOf(false)
+        private set
+    /** 自動マッチングで相手を探している (マッチング待ちのポップアップを出す) */
+    var ogsSearching by mutableStateOf(false)
+        private set
+    private var ogsSearchUuid: String? = null
+    /** OGS で対局中の1局 */
+    var ogsGame by mutableStateOf<OgsGame?>(null)
+        private set
+    /** 持ち時間の表示を進めるための時計 (サーバーの時刻。対局中だけ進める) */
+    private var ogsTick by mutableStateOf(0L)
+    private var ogsTickJob: Job? = null
+
+    /** OGS の対局中なら、AI を使う操作を断る */
+    private fun blockedByOgs(): Boolean {
+        if (ogsGame == null) return false
+        message = str(R.string.ogs_no_ai_during_game)
+        return true
+    }
+
+    /** メニューの「OGSで対局」: ログインしていなければログイン画面を出し、していれば自動マッチングを始める */
+    fun onOgsPlay() {
+        when {
+            ogsGame != null -> { message = str(R.string.ogs_in_game); return }
+            ogsSearching || ogsChecking || thinking -> return
+        }
+        viewModelScope.launch {
+            ogsChecking = true
+            val user = try {
+                ogs.fetchUser()
+            } catch (e: Exception) {
+                Log.w("GoAI", "OGS config failed", e)
+                message = str(R.string.ogs_network_error, e.message ?: e.toString())
+                return@launch
+            } finally {
+                ogsChecking = false
+            }
+            ogsUser = user
+            if (user == null) ogsShowLogin = true else startOgsSearch()
+        }
+    }
+
+    /** ログイン画面 (WebView) でページを開くたびに呼ぶ。ログインできていたら画面を閉じてマッチングを始める */
+    fun onOgsLoginPage() {
+        if (!ogsShowLogin) return
+        viewModelScope.launch {
+            val user = runCatching { ogs.fetchUser() }.getOrNull() ?: return@launch
+            if (!ogsShowLogin) return@launch
+            ogsUser = user
+            ogsShowLogin = false
+            startOgsSearch()
+        }
+    }
+
+    fun dismissOgsLogin() {
+        ogsShowLogin = false
+    }
+
+    /** OGS からログアウトする (WebView のセッションを消す) */
+    fun ogsSignOut() {
+        if (ogsGame != null) { message = str(R.string.ogs_in_game); return }
+        if (ogsSearching) cancelOgsSearch()
+        ogs.signOut()
+        ogsUser = null
+    }
+
+    /** ログインしているかを確かめる (対局条件の画面に名前を出すため)。通信できなければそのまま */
+    fun refreshOgsUser() {
+        viewModelScope.launch { runCatching { ogs.fetchUser() }.onSuccess { ogsUser = it } }
+    }
+
+    private fun startOgsSearch() {
+        if (ogsGame != null || ogsSearching) return
+        // AI との対局や解析は止めてから探す
+        humanColor = null
+        if (autoAnalyzing) stopAutoAnalysis()
+        stopAnalysis()
+        ogs.connect()
+        val uuid = OgsClient.newUuid()
+        ogsSearchUuid = uuid
+        ogsSearching = true
+        ogs.send("automatch/find_match", ogsMatchPrefs.toFindMatch(uuid))
+    }
+
+    /** マッチング待ちのポップアップの「キャンセル」 */
+    fun cancelOgsSearch() {
+        val uuid = ogsSearchUuid
+        ogsSearching = false
+        ogsSearchUuid = null
+        if (uuid != null) ogs.send("automatch/cancel", JSONObject().put("uuid", uuid))
+        // 取り消しを送り終えてから切る
+        viewModelScope.launch {
+            delay(1000)
+            if (!ogsSearching && ogsGame == null) ogs.disconnect()
+        }
+    }
+
+    /** 対局条件を変える。相手を探している途中なら、新しい条件で探し直す */
+    fun updateOgsMatchPrefs(p: OgsMatchPrefs) {
+        ogsMatchPrefs = p
+        p.save(ogsPrefs)
+        val old = ogsSearchUuid ?: return
+        if (!ogsSearching) return
+        ogs.send("automatch/cancel", JSONObject().put("uuid", old))
+        val uuid = OgsClient.newUuid()
+        ogsSearchUuid = uuid
+        ogs.send("automatch/find_match", p.toFindMatch(uuid))
+    }
+
+    private fun sendGameConnect(id: Long) =
+        ogs.send("game/connect", JSONObject().put("game_id", id).put("chat", false))
+
+    override fun onOgsConnection(connected: Boolean) {
+        if (!connected) return
+        // つなぎ直したら、対局と、探している途中のマッチングを送り直す
+        val g = ogsGame
+        if (g != null) sendGameConnect(g.id)
+        else if (ogsSearching) ogsSearchUuid?.let { ogs.send("automatch/find_match", ogsMatchPrefs.toFindMatch(it)) }
+    }
+
+    override fun onOgsEvent(command: String, data: Any?) {
+        when (command) {
+            "automatch/start" -> {
+                val obj = data as? JSONObject ?: return
+                if (obj.optString("uuid") != ogsSearchUuid) return
+                ogsSearching = false
+                ogsSearchUuid = null
+                startOgsGame(obj.getLong("game_id"))
+            }
+            "automatch/cancel" -> {
+                val uuid = (data as? JSONObject)?.opt("uuid") as? String
+                if (ogsSearching && (uuid == null || uuid == ogsSearchUuid)) {
+                    ogsSearching = false
+                    ogsSearchUuid = null
+                    message = str(R.string.ogs_search_canceled)
+                }
+            }
+            else -> {
+                val g = ogsGame ?: return
+                val prefix = "game/${g.id}/"
+                if (!command.startsWith(prefix)) return
+                when (command.removePrefix(prefix)) {
+                    "gamedata" -> (data as? JSONObject)?.let { onOgsGameData(g, it) }
+                    "move" -> (data as? JSONObject)?.let { onOgsMove(g, it) }
+                    "clock" -> (data as? JSONObject)?.let { onOgsClock(g, it) }
+                    "phase" -> {
+                        val phase = OgsPhase.of(data as? String)
+                        if (phase != OgsPhase.STONE_REMOVAL) g.removed = emptySet()
+                        g.phase = phase
+                        // 終局したら、結果の入った gamedata をもらい直す
+                        if (phase == OgsPhase.FINISHED) sendGameConnect(g.id)
+                    }
+                    "removed_stones" -> (data as? JSONObject)?.let { onOgsRemovedStones(g, it) }
+                    "removed_stones_accepted" -> (data as? JSONObject)?.let { obj ->
+                        if (OgsPhase.of(obj.optString("phase")) == OgsPhase.FINISHED) sendGameConnect(g.id)
+                    }
+                    "reset" -> sendGameConnect(g.id)
+                    "error" -> {
+                        message = str(R.string.ogs_error, data?.toString() ?: "")
+                        // 送った手が断られたかもしれないので、サーバーの局面に戻す
+                        if (g.pending != null) {
+                            g.pending = null
+                            syncOgsTree(g)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startOgsGame(id: Long) {
+        if (autoAnalyzing) stopAutoAnalysis()
+        stopAnalysis()
+        if (thinking) cancelThinking()
+        humanColor = null
+        saveKifu()
+        clearAnalysis()
+        judgement = null
+        judgementNode = null
+        ogsGame = OgsGame(id)
+        // 新しい棋譜として過去の棋譜に保存する
+        historyId = null
+        gameDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        timeSettings = null
+        prefs.edit().remove("history_id").apply()
+        sendGameConnect(id)
+        ogsTickJob?.cancel()
+        ogsTickJob = viewModelScope.launch {
+            while (true) {
+                ogsTick = ogs.serverNow()
+                delay(250)
+            }
+        }
+    }
+
+    private fun onOgsGameData(g: OgsGame, obj: JSONObject) {
+        val width = obj.optInt("width", 19)
+        if (width != obj.optInt("height", width) || width !in BOARD_SIZES) {
+            message = str(R.string.ogs_unsupported_board)
+            return
+        }
+        g.size = width
+        g.komi = obj.optDouble("komi", g.komi)
+        g.rules = when (obj.optString("rules")) {
+            "japanese", "korean" -> Rules.JAPANESE
+            "" -> g.rules
+            else -> Rules.CHINESE // 中国・AGA・ニュージーランド・応昌期ルールはどれも地と石を数える
+        }
+        g.handicap = obj.optInt("handicap", 0)
+        g.freeHandicap = obj.optBoolean("free_handicap_placement", false)
+        g.initialBlack = obj.optJSONObject("initial_state")?.optString("black", "")
+            ?.let { OgsCoord.decodePoints(it, width) } ?: emptyList()
+        val players = obj.optJSONObject("players")
+        fun player(key: String): Pair<Long, String> {
+            val p = players?.optJSONObject(key) ?: return obj.optLong("${key}_player_id", 0L) to ""
+            val rank = OgsCoord.rankText(p.optDouble("rank", p.optDouble("ranking", Double.NaN)))
+            val name = p.optString("username", "")
+            return p.optLong("id", 0L) to if (rank != null) "$name [$rank]" else name
+        }
+        val (bId, bName) = player("black")
+        val (wId, wName) = player("white")
+        g.blackId = bId
+        g.whiteId = wId
+        g.myColor = when (ogsUser?.id) {
+            bId -> Stone.BLACK
+            wId -> Stone.WHITE
+            else -> null
+        }
+        val moves = obj.optJSONArray("moves")
+        g.moves = (0 until (moves?.length() ?: 0)).mapNotNull { i -> moves?.optJSONArray(i)?.let { OgsCoord.decodeMove(it) } }
+        g.pending = null
+        g.phase = OgsPhase.of(obj.optString("phase"))
+        obj.optJSONObject("clock")?.let { onOgsClock(g, it) }
+        g.removed = OgsCoord.decodePoints(obj.optString("removed", ""), width).toSet()
+        blackName = bName.ifEmpty { str(R.string.default_black_name) }
+        whiteName = wName.ifEmpty { str(R.string.default_white_name) }
+        settings = settings.copy(
+            boardSize = width, komi = g.komi, rules = g.rules,
+            handicap = g.initialBlack.size.coerceAtMost(maxHandicap(width)),
+        ).also { saveSettings(it) }
+        g.loaded = true
+        syncOgsTree(g)
+        if (g.phase == OgsPhase.FINISHED) finishOgsGame(g, obj)
+    }
+
+    private fun onOgsMove(g: OgsGame, obj: JSONObject) {
+        if (!g.loaded) return
+        val arr = obj.optJSONArray("move") ?: return
+        val number = obj.optInt("move_number", g.moves.size + 1)
+        // つなぎ直したときなどに、もう受け取った手がまた来ることがある
+        if (number <= g.moves.size) return
+        g.moves = g.moves + OgsCoord.decodeMove(arr)
+        g.pending = null
+        syncOgsTree(g)
+    }
+
+    private fun onOgsClock(g: OgsGame, obj: JSONObject) {
+        g.clock = obj
+        g.currentPlayerId = obj.optLong("current_player", g.currentPlayerId)
+    }
+
+    private fun onOgsRemovedStones(g: OgsGame, obj: JSONObject) {
+        val size = g.size
+        g.removed = when {
+            obj.optBoolean("auto_scored", false) && obj.has("all_removed") ->
+                OgsCoord.decodePoints(obj.optString("all_removed", ""), size).toSet()
+            obj.has("stones") -> {
+                val stones = OgsCoord.decodePoints(obj.optString("stones", ""), size).toSet()
+                if (obj.optBoolean("removed", false)) g.removed + stones else g.removed - stones
+            }
+            else -> return
+        }
+    }
+
+    /**
+     * サーバーの手 (と送った自分の手) に合わせて棋譜を作る。今の本譜の続きなら残りの手だけ足し、
+     * 違っていれば作り直す。手が来たら最新の局面を見せる
+     */
+    private fun syncOgsTree(g: OgsGame) {
+        if (!g.loaded) return
+        val all = g.moves + listOfNotNull(g.pending)
+        // 自由置石では、最初の handicap 手 (黒が続けて置く) を置石にする
+        val placed = if (g.freeHandicap && g.handicap > 1) all.size.coerceAtMost(g.handicap) else 0
+        val stones = g.initialBlack + all.take(placed).mapNotNull { (it as? Move.Play)?.let { p -> p.x to p.y } }
+        val rest = all.drop(placed)
+        fun build(root: GoNode): GoNode? {
+            var n = root
+            for (m in rest) {
+                val main = n.children.firstOrNull { !it.isPvBranch }
+                n = when {
+                    main == null -> n.childFor(m) ?: run {
+                        Log.w("GoAI", "OGS move not legal here: $m")
+                        return n
+                    }
+                    main.move?.move == m -> main
+                    else -> return null // 前に作った手順と違う
+                }
+            }
+            // 断られた自分の手など、サーバーに無い続きは消す
+            n.children.removeAll { !it.isPvBranch }
+            return n
+        }
+        val existing = g.root?.takeIf { it.game.size == g.size && it.game.handicapStones == stones }
+        currentNode = existing?.let { build(it) } ?: GoNode(GoGame(g.size, stones)).let { r ->
+            g.root = r
+            build(r)!!
+        }
+        saveKifu()
+    }
+
+    private fun ogsCanPlay(g: OgsGame): Boolean {
+        val me = g.myColor ?: return false
+        if (!g.loaded || g.phase != OgsPhase.PLAY || g.pending != null) return false
+        // 最新の局面を見ているときだけ
+        if (currentNode.children.any { !it.isPvBranch }) return false
+        return if (g.currentPlayerId != 0L) g.currentPlayerId == g.idOf(me)
+        else if (g.placingHandicap) me == Stone.BLACK else game.toPlay == me
+    }
+
+    private fun ogsPlay(g: OgsGame, move: Move) {
+        if (!ogsCanPlay(g)) return
+        val legal = if (g.placingHandicap) {
+            move is Move.Play && game.board[move.x, move.y] == Stone.EMPTY
+        } else game.isLegal(move)
+        if (!legal) {
+            message = str(R.string.illegal_move)
+            return
+        }
+        g.pending = move
+        ogs.send("game/move", JSONObject().put("game_id", g.id).put("move", OgsCoord.encode(move)))
+        syncOgsTree(g)
+    }
+
+    private fun ogsResign(g: OgsGame) {
+        if (g.phase == OgsPhase.FINISHED || g.myColor == null) return
+        ogs.send("game/resign", JSONObject().put("game_id", g.id))
+    }
+
+    /** 整地中に石をタップ: その石の連を死に石にする / 戻す */
+    private fun ogsToggleRemoved(g: OgsGame, x: Int, y: Int) {
+        if (g.myColor == null) return
+        val board = game.board
+        val color = board[x, y]
+        if (color == Stone.EMPTY) return
+        val group = mutableSetOf(x to y)
+        val stack = ArrayDeque(listOf(x to y))
+        while (stack.isNotEmpty()) {
+            val (cx, cy) = stack.removeLast()
+            for ((nx, ny) in listOf(cx - 1 to cy, cx + 1 to cy, cx to cy - 1, cx to cy + 1)) {
+                if (board.isOnBoard(nx, ny) && board[nx, ny] == color && group.add(nx to ny)) stack.addLast(nx to ny)
+            }
+        }
+        val remove = (x to y) !in g.removed
+        g.removed = if (remove) g.removed + group else g.removed - group
+        ogs.send(
+            "game/removed_stones/set",
+            JSONObject().put("game_id", g.id).put("removed", remove).put("stones", OgsCoord.encodePoints(group)),
+        )
+    }
+
+    /** 整地の「同意」 */
+    fun ogsAcceptRemoved() {
+        val g = ogsGame ?: return
+        if (g.phase != OgsPhase.STONE_REMOVAL) return
+        ogs.send(
+            "game/removed_stones/accept",
+            JSONObject().put("game_id", g.id).put("stones", OgsCoord.encodePoints(g.removed)).put("strict_seki_mode", false),
+        )
+    }
+
+    /** 整地の「対局再開」(死に石の判定に同意せず、対局に戻す) */
+    fun ogsRejectRemoved() {
+        val g = ogsGame ?: return
+        if (g.phase != OgsPhase.STONE_REMOVAL) return
+        ogs.send("game/removed_stones/reject", JSONObject().put("game_id", g.id))
+    }
+
+    /** 終局: 結果を棋譜に書き、OGS の対局を終えて普段の検討に戻す (ここからは解析もできる) */
+    private fun finishOgsGame(g: OgsGame, obj: JSONObject) {
+        val winner = when (obj.optLong("winner", 0L)) {
+            0L -> null
+            g.blackId -> Stone.BLACK
+            g.whiteId -> Stone.WHITE
+            else -> null
+        }
+        val o = obj.optString("outcome", "").lowercase()
+        val code = when {
+            winner == null -> null
+            "resign" in o -> "${winner.gtp}+R"
+            "time" in o -> "${winner.gtp}+T"
+            "point" in o -> Regex("[0-9]+(\\.[0-9]+)?").find(o)?.value?.let { "${winner.gtp}+$it" } ?: "${winner.gtp}+"
+            else -> "${winner.gtp}+F" // 反則負け・放棄など
+        }
+        // 結果は最後の局面に付けて、そこを見せる
+        currentNode = currentNode.root.linePath().last()
+        if (code != null) {
+            currentNode.result = GameResult(code, g.removed)
+            // 「黒 3.5 目勝ち」などをポップアップで知らせる
+            judgementPopup = currentNode.result
+        } else message = str(R.string.ogs_game_canceled)
+        ogs.send("game/disconnect", JSONObject().put("game_id", g.id))
+        ogsGame = null
+        ogsTickJob?.cancel()
+        saveKifu()
+        viewModelScope.launch {
+            delay(1000)
+            if (ogsGame == null && !ogsSearching) ogs.disconnect()
+            configureEngine()
+        }
+    }
+
+    /** OGS の対局中の color の残り時間 [秒] と秒読みの残り回数。OGS の対局中でなければ null */
+    fun ogsTimeLeft(color: Stone): Pair<Double, Int?>? {
+        val g = ogsGame ?: return null
+        return g.timeLeft(color, ogsTick.takeIf { it > 0 } ?: ogs.serverNow())
     }
 }

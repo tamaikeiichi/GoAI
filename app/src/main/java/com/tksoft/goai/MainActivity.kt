@@ -83,6 +83,8 @@ import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.OutlinedTextField
@@ -236,6 +238,8 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
     var editingName by rememberSaveable { mutableStateOf<Stone?>(null) }
+    var showOgsSettings by rememberSaveable { mutableStateOf(false) }
+    var confirmOgsResign by rememberSaveable { mutableStateOf(false) }
     // 横長レイアウトで盤を最大化しているか (bottomBar と読み筋カードを隠し、盤の上に1行だけ置く)
     var maximized by rememberSaveable { mutableStateOf(false) }
     // レイアウトは3種類 (ShogiGUI と同じ):
@@ -317,7 +321,7 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 moveTime = KifuTime.consumed(vm.currentNode, vm.timeSettings)?.let { KifuTime.format(it) },
             ) { vm.goTo(it) }
             Spacer(modifier = Modifier.height(8.dp))
-            BottomButtons(vm)
+            BottomButtons(vm, onResign = { confirmOgsResign = true })
         }
     }
 
@@ -452,6 +456,15 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
 
         ThinkingOverlay(vm)
 
+        // OGS の整地: 死に石をタップで選び、同意する
+        if (vm.ogsGame?.phase == OgsPhase.STONE_REMOVAL && vm.ogsGame?.myColor != null) {
+            OgsStoneRemovalCard(
+                onAccept = vm::ogsAcceptRemoved,
+                onResume = vm::ogsRejectRemoved,
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 48.dp),
+            )
+        }
+
 
         // Gemini アプリのように、左から画面全体にせり出すメニュー。右上の × か左へのスワイプで閉じる
         AnimatedVisibility(
@@ -463,6 +476,15 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
             BackHandler { showMenu = false }
             FullScreenMenu(onClose = { showMenu = false }) {
                 val ready = vm.engineStatus == EngineStatus.Ready && !vm.thinking
+                // OGS (online-go.com) で人と対局する。ログインしていなければログイン画面、していればすぐ相手を探す
+                MenuItem(Icons.Outlined.Public, text = { Text(stringResource(R.string.ogs_play)) }) {
+                    showMenu = false
+                    vm.onOgsPlay()
+                }
+                MenuItem(Icons.Outlined.Tune, text = { Text(stringResource(R.string.ogs_match_settings)) }) {
+                    showMenu = false
+                    showOgsSettings = true
+                }
                 MenuItem(Icons.Outlined.Settings, text = { Text(stringResource(R.string.menu_settings)) }) {
                     showMenu = false
                     showSettings = true
@@ -526,10 +548,11 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     showMenu = false
                     vm.judge()
                 }
-                if (vm.isPlayingGame) {
+                if (vm.isPlayingGame || vm.ogsGame != null) {
                     MenuItem(Icons.Outlined.Flag, text = { Text(stringResource(R.string.resign)) }) {
                         showMenu = false
-                        vm.resign()
+                        // OGS の対局は取り消せないので確かめてから投了する
+                        if (vm.ogsGame != null) confirmOgsResign = true else vm.resign()
                     }
                 }
                 MenuItem(Icons.Outlined.History, text = { Text(stringResource(R.string.menu_history)) }) {
@@ -561,6 +584,48 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                 showSettings = false
                 vm.applySettings(it)
             },
+        )
+    }
+
+    if (vm.ogsShowLogin) {
+        OgsLoginDialog(onPage = vm::onOgsLoginPage, onDismiss = vm::dismissOgsLogin)
+    }
+
+    if (vm.ogsSearching) {
+        OgsSearchDialog(
+            prefs = vm.ogsMatchPrefs,
+            onChangeSettings = { showOgsSettings = true },
+            onCancel = vm::cancelOgsSearch,
+        )
+    }
+
+    // マッチング待ちのポップアップの上にも出せるよう、その後に置く
+    if (showOgsSettings) {
+        LaunchedEffect(Unit) { vm.refreshOgsUser() }
+        OgsMatchSettingsDialog(
+            initial = vm.ogsMatchPrefs,
+            user = vm.ogsUser,
+            onDismiss = { showOgsSettings = false },
+            onSave = {
+                showOgsSettings = false
+                vm.updateOgsMatchPrefs(it)
+            },
+            onSignOut = {
+                showOgsSettings = false
+                vm.ogsSignOut()
+            },
+        )
+    }
+
+    if (confirmOgsResign) {
+        AlertDialog(
+            onDismissRequest = { confirmOgsResign = false },
+            icon = { Icon(Icons.Outlined.Flag, null) },
+            text = { Text(stringResource(R.string.ogs_resign_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { confirmOgsResign = false; vm.resign() }) { Text(stringResource(R.string.resign)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmOgsResign = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 
@@ -851,7 +916,7 @@ private fun BoardArea(vm: GameViewModel, boardModifier: Modifier, onBoardBounds:
 @Composable
 private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean = false, onEditName: (Stone) -> Unit) {
     val game = vm.game
-    val bottom = vm.humanColor ?: Stone.BLACK
+    val bottom = vm.bottomColor
     val stone = if (top) bottom.opponent else bottom
     val result = vm.result
     val turn = if (result == null) game.toPlay else null
@@ -931,7 +996,8 @@ private fun NavButton(icon: ImageVector, description: String, enabled: Boolean, 
 /** 読み込んだ棋譜に時間が書かれていれば、今の局面での color の残り時間 ("残り 1:23:45"・秒読みの回数) */
 @Composable
 private fun timeLeftText(vm: GameViewModel, color: Stone): String? {
-    val (sec, periods) = KifuTime.remaining(vm.currentNode, color, vm.timeSettings) ?: return null
+    // OGS の対局中は OGS の時計 (手番の側は減っていく)
+    val (sec, periods) = vm.ogsTimeLeft(color) ?: KifuTime.remaining(vm.currentNode, color, vm.timeSettings) ?: return null
     val t = KifuTime.format(sec)
     return if (periods != null) stringResource(R.string.time_left_periods, t, periods) else stringResource(R.string.time_left, t)
 }
@@ -1010,8 +1076,9 @@ private fun Board(vm: GameViewModel, modifier: Modifier) {
             candidateAlpha = candidateAlpha.value,
             result = vm.shownResult,
             pvStartMove = vm.pvStartMove,
-            placement = vm.settings.placement,
-            ghostColor = if (vm.canPlay) game.toPlay else null,
+            // OGS の整地では石そのものをタップして選ぶので、ドラッグ・ダブルタップの設定でも普通のタップにする
+            placement = if (vm.ogsGame?.phase == OgsPhase.STONE_REMOVAL) Placement.TAP else vm.settings.placement,
+            ghostColor = vm.ghostColor,
         )
         // 読み込み中は bottomBar のボタン (「準備中」) で分かるので、盤には起動に失敗したときだけ出す
         when (val s = vm.engineStatus) {
@@ -1096,7 +1163,7 @@ private fun PvCards(vm: GameViewModel, compact: Boolean = false) {
 }
 
 @Composable
-private fun BottomButtons(vm: GameViewModel) {
+private fun BottomButtons(vm: GameViewModel, onResign: () -> Unit) {
     val ready = vm.engineStatus == EngineStatus.Ready
     val context = LocalContext.current
     Row(
@@ -1107,7 +1174,7 @@ private fun BottomButtons(vm: GameViewModel) {
         BarButton(
             icon = { Icon(Icons.Outlined.ContentPaste, stringResource(R.string.action_load_from_clipboard_desc)) },
             label = stringResource(R.string.action_load_from_clipboard_label),
-            enabled = !vm.thinking,
+            enabled = !vm.thinking && vm.ogsGame == null,
             onClick = {
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
@@ -1115,6 +1182,22 @@ private fun BottomButtons(vm: GameViewModel) {
                 else vm.loadSgf(text)
             },
         )
+        if (vm.ogsGame != null) {
+            // OGS で対局中は、解析などの代わりにパスと投了を置く (AI は使えない)
+            BarButton(
+                icon = { Icon(Icons.Outlined.SkipNext, stringResource(R.string.pass)) },
+                label = stringResource(R.string.pass),
+                enabled = vm.canPlay,
+                onClick = vm::pass,
+            )
+            BarButton(
+                icon = { Icon(Icons.Outlined.Flag, stringResource(R.string.resign)) },
+                label = stringResource(R.string.resign),
+                enabled = vm.ogsGame?.let { it.myColor != null && it.phase != OgsPhase.FINISHED } == true,
+                onClick = onResign,
+            )
+            return@Row
+        }
         if (vm.isPlayingGame) {
             // AI と対局中は、解析・全て解析・本譜の代わりにパス・終局 (終局判定)・CPU 対局の中止を置く。解析などはメニューから使える
             BarButton(
@@ -1527,6 +1610,8 @@ fun AboutScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
         ) {
             Text(stringResource(R.string.about_text), style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(R.string.ogs_about), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))

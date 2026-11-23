@@ -22,6 +22,10 @@ A free, open source Go app for Android (9x9, 13x13, 19x19). The AI is
 - 設定: 盤の大きさ、石の置き方 (シングルタップ / ダブルタップ (1回目は半透明の石を出す) / 指の上に半透明の石を出してドラッグ)、
   日本ルール / 中国ルール、置石 (0〜9 子)、コミ、自動解析時の思考時間 (AI は常に最善手を打ち、強さは思考時間で変わる。全て解析の1手あたりの時間も兼ねる)
 - 終局時は KataGo が死活を判定し、死に石と地を表示
+- OGS で対局: メニューの「OGSで対局」で [online-go.com](https://online-go.com) (OGS) の自動マッチングで人と対局する。
+  ログインしていなければ OGS のログイン画面 (WebView。パスワードはアプリを通らない) を開く。
+  マッチング待ちのポップアップとメニューの「OGS の対局条件」で、盤の大きさ・速さ・持ち時間の方式・ルール・置き碁・相手の棋力の幅を変えられる。
+  OGS の規約で対局中の碁ソフトの助けが禁止されているので、対局中は解析・読み筋・終局判定・AI との対局を使えない (終局後は使える)
 - 碁盤は実物と同じく少し縦長。座標は盤の外の欄に、上辺が数字・左辺がアルファベット (左上が 1A)
 - 折りたたみスマホを広げたとき・タブレットを横長にしたとき (幅 840dp 以上) は、盤をなるべく大きくするため、
   左からメニューボタン・盤・(上の対局者・読み筋カード・下の対局者) の3列にする
@@ -47,6 +51,7 @@ Android Studio で開いてビルドするだけです。
 | `GoGame.kt` | 盤面と囲碁のルール (取り・コウ・自殺手・パス) |
 | `GameViewModel.kt` | 対局の進行、エンジンとの局面同期 |
 | `GoNode.kt` | 棋譜の樹形図 (分岐・形勢) |
+| `OgsClient.kt` / `OgsGame.kt` / `OgsUI.kt` | OGS との通信 (ログイン・自動マッチング・対局)、対局の状態、ログイン画面と対局条件の画面 |
 | `KifuHistory.kt` | 過去の棋譜の保存・ZIP のエクスポート/インポート (ShogiGUI から移植) |
 | `Sgf.kt` / `SgfParser.kt` | SGF の書き出し・読み込み |
 | `GoBoardView.kt` | 碁盤の描画 |
@@ -65,6 +70,11 @@ GoAI 自体は [MIT License](LICENSE) です。同梱しているサードパー
 | TCLAP, ghc::filesystem, half, nlohmann/json | MIT |
 | sha2.cpp (Aaron D. Gifford) | BSD-3-Clause |
 | AndroidX / Jetpack Compose, Material Symbols | Apache 2.0 |
+| OkHttp / Okio | Apache 2.0 |
+
+OGS の Web クライアント ([online-go/online-go.com](https://github.com/online-go/online-go.com)) は AGPL-3.0 ですが、
+そのコードは使っていません。OGS との通信は、OGS の [goban](https://github.com/online-go/goban) ライブラリ (Apache-2.0)
+にある通信の型定義を見て、このアプリで書いたものです。このアプリは OGS とは関係ありません。
 
 ## Privacy
 [privacyPolicy.txt](privacyPolicy.txt)

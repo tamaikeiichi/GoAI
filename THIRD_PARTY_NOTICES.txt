@@ -20,6 +20,7 @@ GoAI includes the following third party software and data.
   sha2.cpp (Aaron D. Gifford)      BSD-3-Clause  SHA-2 hashing (KataGo)
   AndroidX / Jetpack Compose       Apache 2.0    User interface
   Material Symbols / Icons         Apache 2.0    Button and menu icons
+  OkHttp 4.12 / Okio               Apache 2.0    Network access for OGS games
 
 Eigen source code (MPL 2.0) is available at https://gitlab.com/libeigen/eigen
 and the copy used by GoAI is in app/src/main/cpp/eigen of
@@ -621,3 +622,22 @@ AndroidX / Jetpack Compose  (Apache License 2.0)
 ================================================================================
 
 Copyright The Android Open Source Project. Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+
+================================================================================
+OkHttp / Okio  (Apache License 2.0)  https://square.github.io/okhttp/
+================================================================================
+
+Copyright 2019 Square, Inc. Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+
+================================================================================
+Online play (online-go.com / OGS)
+================================================================================
+
+Online games are played on the online-go.com (OGS) server through its public
+APIs. GoAI does not include any code from the OGS web client
+(https://github.com/online-go/online-go.com, AGPL-3.0). The client code that
+talks to OGS (OgsClient.kt) was written for GoAI, following the message types
+documented in OGS's goban library (https://github.com/online-go/goban,
+Apache-2.0). GoAI is not affiliated with or endorsed by OGS.
