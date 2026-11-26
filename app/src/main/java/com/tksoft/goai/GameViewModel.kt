@@ -239,6 +239,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
 
     val result: GameResult? get() = currentNode.result
 
+    /** 棋譜の本線の最後に書かれた結果 (読み込んだ棋譜の RE など)。初手から結果を示すのに使う */
+    val kifuResult: GameResult?
+        get() {
+            var n = currentNode.root
+            while (true) n = n.children.firstOrNull() ?: break
+            return n.result
+        }
+
     /** メニューの「終局判定」の結果。判定した局面にいる間だけ盤上に地と死に石を出す (棋譜には残さない) */
     private var judgement by mutableStateOf<GameResult?>(null)
     private var judgementNode by mutableStateOf<GoNode?>(null)

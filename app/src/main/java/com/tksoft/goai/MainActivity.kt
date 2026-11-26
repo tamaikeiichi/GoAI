@@ -208,12 +208,18 @@ class MainActivity : ComponentActivity() {
 
     /** 他のアプリの「共有」(SGF のテキストかファイル) や、SGF ファイルを開く操作で受け取った棋譜を読み込む */
     private fun receiveKifu(intent: Intent) {
+        // 最近使ったアプリから開き直したときや、アプリを更新したあとに Android が作り直したときは、
+        // 前の「共有」のインテントがもう一度来るので読まない (中身が空のこともある)
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
         val uri: Uri? = when (intent.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
             else -> return
         }
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+        if (uri == null && sharedText.isNullOrBlank()) return
+        // 一度読んだら、アクティビティを作り直しても同じ棋譜をもう一度読まないよう、ふつうの起動のインテントにしておく
+        setIntent(Intent(Intent.ACTION_MAIN).setClass(this, MainActivity::class.java))
         lifecycleScope.launch {
             val text = uri?.let { u ->
                 withContext(Dispatchers.IO) {
@@ -964,7 +970,8 @@ private fun PlayerSection(vm: GameViewModel, top: Boolean, alignStart: Boolean =
         captures = if (stone == Stone.BLACK) game.capturedByBlack else game.capturedByWhite,
         komi = vm.settings.komi,
         isActive = turn == stone,
-        gameResult = if (!top) result?.let { resultText(it.code) } ?: "" else "",
+        // 結果の書かれた棋譜は、最後の手まで進めなくても初手から結果を示す
+        gameResult = if (!top) (result ?: vm.kifuResult)?.let { resultText(it.code) } ?: "" else "",
         timeLeft = timeLeftText(vm, stone),
         onNameClick = { onEditName(stone) },
         alignStart = alignStart,
