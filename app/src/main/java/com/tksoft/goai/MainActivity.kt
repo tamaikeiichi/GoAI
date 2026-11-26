@@ -220,12 +220,14 @@ class MainActivity : ComponentActivity() {
                     runCatching { contentResolver.openInputStream(u)?.use { SgfParser.decode(it.readBytes()) } }.getOrNull()
                 }
             } ?: sharedText
-            // ブラウザでページを「共有」すると URL だけが来る (ダウンロードはしない)
-            if (text == null || !text.contains("(;")) {
+            // ブラウザでページやダウンロードのリンクを「共有」すると URL だけが来るので、その URL から取ってくる
+            val sgf = if (text != null && SgfParser.looksLikeSgf(text)) text
+                else SgfDownloader.findUrl(text)?.let { url -> withContext(Dispatchers.IO) { SgfDownloader.download(url) } }
+            if (sgf == null) {
                 vm.message = getString(R.string.shared_not_sgf)
                 return@launch
             }
-            vm.loadSgf(text)
+            vm.loadSgf(sgf)
         }
     }
 }

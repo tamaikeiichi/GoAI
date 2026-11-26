@@ -37,8 +37,15 @@ object SgfParser {
 
     private class SgfNode(val props: Map<String, List<String>>, val children: MutableList<SgfNode> = mutableListOf())
 
+    /** SGF の始まり "(;" の位置 ("(" と ";" の間に改行や空白があってもよい)。無ければ -1 */
+    fun startIndex(text: String): Int = sgfStart.find(text)?.range?.first ?: -1
+    private val sgfStart = Regex("""\(\s*;""")
+
+    /** text に SGF の棋譜があるか */
+    fun looksLikeSgf(text: String): Boolean = startIndex(text) >= 0
+
     fun parse(text: String): Loaded {
-        val start = text.indexOf("(;")
+        val start = startIndex(text)
         if (start < 0) throw IllegalArgumentException("not SGF")
         val p = Reader(text, start)
         val tree = p.readGameTree() ?: throw IllegalArgumentException("empty SGF")

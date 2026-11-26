@@ -37,7 +37,8 @@
                 <data android:mimeType="application/sgf" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
-            <!-- ファイルアプリやブラウザのダウンロードから SGF ファイルを開く -->
+            <!-- ファイルアプリやブラウザのダウンロードから SGF ファイルを開く
+                 (サイトによっては SGF を application/octet-stream で送るので、ダウンロードしたものはその型になる) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -46,6 +47,7 @@
                 <data android:scheme="file" />
                 <data android:mimeType="application/x-go-sgf" />
                 <data android:mimeType="application/sgf" />
+                <data android:mimeType="application/octet-stream" />
             </intent-filter>
         </activity>
     </application>

@@ -63,4 +63,14 @@ class SgfTest {
         assertEquals("B+F", re("B+Illegal "))
         assertEquals("W+3.5", re("W+3.5   "))
     }
+
+    @Test
+    fun newlineBetweenParenAndSemicolon() {
+        // note の添付ファイルのように "(" と ";" の間に改行がある SGF
+        val sgf = "(\n;FF[4]\n GM[1]\n SZ[19]\n;B[pd]\n;W[dp]\n)"
+        assertEquals(true, SgfParser.looksLikeSgf(sgf))
+        assertEquals(false, SgfParser.looksLikeSgf("https://note.com/api/v2/attachments/download/x"))
+        val r = SgfParser.parse(sgf)
+        assertEquals(Move.Play(15, 3), r.root.children[0].move?.move)
+    }
 }
