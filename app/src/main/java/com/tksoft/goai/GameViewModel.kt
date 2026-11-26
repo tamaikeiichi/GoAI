@@ -7,6 +7,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -354,17 +355,65 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         }
     }
 
+    /**
+     * 「1手削除」「分岐を削除」で消したもの。「元に戻す」で新しいものから順に戻す。
+     * removed は (親, 子の並びの中の位置, 消した子) で、同じ親の中では位置の小さい順に並べる
+     */
+    private class Deletion(val root: GoNode, val removed: List<Triple<GoNode, Int, GoNode>>, val before: GoNode)
+    private val deletions = mutableStateListOf<Deletion>()
+
+    /** 今の局面が本譜か変化図の最後の手で、「1手削除」できるか */
+    val canDeleteLastMove: Boolean
+        get() = ogsGame == null && currentNode.parent != null && currentNode.continuationChild() == null
+
+    /** 「元に戻す」で戻せる削除があるか (別の棋譜を開いたら、前の棋譜の削除は戻せない) */
+    val canUndoDelete: Boolean get() = deletions.lastOrNull()?.root === currentNode.root
+
+    /** 本譜か変化図の最後の手にいるとき、その手を削除して1手前に戻る */
+    fun deleteLastMove() {
+        if (thinking || blockedByOgs() || !canDeleteLastMove) return
+        stopAnalysis()
+        unpin()
+        val node = currentNode
+        val parent = node.parent ?: return
+        val index = parent.children.indexOf(node)
+        parent.children.removeAt(index)
+        deletions.add(Deletion(node.root, listOf(Triple(parent, index, node)), node))
+        currentNode = parent
+        saveKifu()
+    }
+
+    /** 「1手削除」「分岐を削除」で消したものを、新しいものから1つずつ元に戻す */
+    fun undoDelete() {
+        if (thinking || blockedByOgs()) return
+        val d = deletions.lastOrNull() ?: return
+        if (d.root !== currentNode.root) {
+            deletions.clear()
+            return
+        }
+        deletions.removeAt(deletions.lastIndex)
+        stopAnalysis()
+        unpin()
+        for ((parent, index, child) in d.removed) parent.children.add(index.coerceAtMost(parent.children.size), child)
+        currentNode = d.before
+        saveKifu()
+    }
+
     /** 本譜 (最初の非 PV 子の列) だけを残し、それ以外の子 (分岐・読み筋) を削除する */
     fun deleteBranches() {
         if (thinking || blockedByOgs()) return
         stopAnalysis()
         unpin()
+        val before = currentNode
+        val removed = mutableListOf<Triple<GoNode, Int, GoNode>>()
         var n: GoNode? = currentNode.root
         while (n != null) {
             val main = n.children.firstOrNull { !it.isPvBranch }
+            n.children.forEachIndexed { i, c -> if (c !== main) removed.add(Triple(n, i, c)) }
             n.children.retainAll { it === main }
             n = main
         }
+        if (removed.isNotEmpty()) deletions.add(Deletion(before.root, removed, before))
         // 削除した分岐の上にいたら、本譜へ戻る
         if (currentNode !in currentNode.root.linePath()) {
             var m = currentNode.root

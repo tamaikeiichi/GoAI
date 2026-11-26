@@ -44,7 +44,7 @@
     <string name="action_preparing">準備中</string>
     <string name="you">你</string>
     <string name="ai_name">KataGo</string>
-    <string name="menu_reset">重設</string>
+    <string name="menu_reset">新棋盤</string>
     <string name="menu_delete_branches">刪除分支</string>
     <string name="menu_settings">設定</string>
     <string name="menu_history">歷史棋譜</string>
@@ -139,4 +139,7 @@
     <string name="ogs_error">OGS：%1$s</string>
     <string name="ogs_about">網路對局使用 online-go.com（OGS）。本應用程式與 OGS 無關。OGS 規則禁止在進行中的對局裡借助電腦，因此 OGS 對局中不能使用 AI（分析、變化圖、判定勝負）。</string>
     <string name="ogs_rules_any">不限</string>
+    <string name="scroll_down">向下捲動</string>
+    <string name="menu_delete_last_move">刪除一手</string>
+    <string name="menu_undo_delete">復原刪除</string>
 </resources>

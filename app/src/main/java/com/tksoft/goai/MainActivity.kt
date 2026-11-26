@@ -61,6 +61,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -78,6 +80,9 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.outlined.RestoreFromTrash
+import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Share
@@ -528,9 +533,25 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     showMenu = false
                     vm.reset()
                 }
+                MenuItem(
+                    Icons.AutoMirrored.Outlined.Backspace,
+                    text = { Text(stringResource(R.string.menu_delete_last_move)) },
+                    enabled = vm.canDeleteLastMove,
+                ) {
+                    showMenu = false
+                    vm.deleteLastMove()
+                }
                 MenuItem(Icons.Outlined.ContentCut, text = { Text(stringResource(R.string.menu_delete_branches)) }) {
                     showMenu = false
                     vm.deleteBranches()
+                }
+                MenuItem(
+                    Icons.Outlined.RestoreFromTrash,
+                    text = { Text(stringResource(R.string.menu_undo_delete)) },
+                    enabled = vm.canUndoDelete,
+                ) {
+                    showMenu = false
+                    vm.undoDelete()
                 }
                 MenuItem(Icons.Outlined.ContentCopy, text = { Text(stringResource(R.string.menu_copy_sgf)) }) {
                     showMenu = false
@@ -1578,26 +1599,57 @@ private fun FullScreenMenu(onClose: () -> Unit, content: @Composable ColumnScope
             )
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            // 上の端には閉じるボタンだけを置く (アプリ名は出さない)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(end = 8.dp, top = 4.dp),
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 IconButton(onClick = onClose) { Icon(Icons.Default.Close, stringResource(R.string.close)) }
             }
-            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp), content = content)
+            // 下にまだ項目があるときは下向きの矢印を出して、スクロールすれば続きがあると分かるようにする
+            // (矢印をタップすると下の端まで送る)
+            val scroll = rememberScrollState()
+            val menuScope = rememberCoroutineScope()
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scroll)
+                        .padding(horizontal = 8.dp),
+                    content = content
+                )
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = scroll.canScrollForward,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = { menuScope.launch { scroll.animateScrollTo(scroll.maxValue) } },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.scroll_down))
+                    }
+                }
+            }
         }
     }
 }
 
 // メニューの1項目
 @Composable
-private fun MenuItem(icon: ImageVector, text: @Composable () -> Unit, onClick: () -> Unit) =
-    MenuItem({ Icon(icon, contentDescription = null) }, text, onClick)
+private fun MenuItem(icon: ImageVector, text: @Composable () -> Unit, enabled: Boolean = true, onClick: () -> Unit) =
+    MenuItem({ Icon(icon, contentDescription = null) }, text, enabled, onClick)
 
+/** enabled が false なら薄くして押せなくする */
 @Composable
-private fun MenuItem(icon: @Composable () -> Unit, text: @Composable () -> Unit, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = CircleShape, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+private fun MenuItem(icon: @Composable () -> Unit, text: @Composable () -> Unit, enabled: Boolean = true, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, enabled = enabled, shape = CircleShape, color = Color.Transparent,
+        contentColor = LocalContentColor.current.let { if (enabled) it else it.copy(alpha = 0.38f) },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Row(
             modifier = Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

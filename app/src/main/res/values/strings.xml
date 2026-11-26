@@ -44,7 +44,7 @@
     <string name="action_preparing">Preparing</string>
     <string name="you">You</string>
     <string name="ai_name">KataGo</string>
-    <string name="menu_reset">Reset</string>
+    <string name="menu_reset">New board</string>
     <string name="menu_delete_branches">Delete branches</string>
     <string name="menu_settings">Settings</string>
     <string name="menu_history">Past games</string>
@@ -139,4 +139,7 @@
     <string name="ogs_error">OGS: %1$s</string>
     <string name="ogs_about">Online games are played on online-go.com (OGS). This app is not affiliated with OGS. During an OGS game the AI (analysis, hints and scoring) is turned off, because the OGS rules forbid computer help in ongoing games.</string>
     <string name="ogs_rules_any">Any</string>
+    <string name="scroll_down">Scroll down</string>
+    <string name="menu_delete_last_move">Delete last move</string>
+    <string name="menu_undo_delete">Undo delete</string>
 </resources>
