@@ -595,7 +595,8 @@ private fun KifuTreeSectionPreview() {
 @Composable
 fun capturesText(stone: Stone, captures: Int, komi: Double): String {
     val gets = if (stone == Stone.WHITE) komi else -komi
-    if (gets <= 0.0) return stringResource(R.string.captures_one, captures)
+    // コミ 0 のときも、コミが無いと分かるよう白の側に「コミ 0」と出す
+    if (gets < 0.0 || (gets == 0.0 && stone == Stone.BLACK)) return stringResource(R.string.captures_one, captures)
     val k = if (gets % 1.0 == 0.0) gets.toLong().toString() else gets.toString()
     return stringResource(R.string.captures_komi, captures, k)
 }

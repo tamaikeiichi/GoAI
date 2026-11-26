@@ -72,12 +72,16 @@ object SgfParser {
                 else -> null
             }
         }
+        // PB・PW が無いか "Black"・"White" のような仮の名前なら、対局名 (GN) に書かれた対局者を使う
+        val pb = props["PB"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() && !isPlaceholderName(it) }
+        val pw = props["PW"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() && !isPlaceholderName(it) }
+        val fromGn = if (pb == null || pw == null) props["GN"]?.firstOrNull()?.let(::namesFromGameName) else null
         return Loaded(
             root = root,
             komi = props["KM"]?.firstOrNull()?.trim()?.toDoubleOrNull(),
             rules = rules,
-            blackName = props["PB"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
-            whiteName = props["PW"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
+            blackName = pb ?: fromGn?.first,
+            whiteName = pw ?: fromGn?.second,
             result = result?.let(::normalizeResult),
             date = props["DT"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
             timeSettings = TimeSettings(
@@ -85,6 +89,36 @@ object SgfParser {
                 overtime = props["OT"]?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() },
             ).takeIf { it.mainTimeSec != null || it.overtime != null },
         )
+    }
+
+    private val placeholderNames = setOf("black", "white", "b", "w", "黒", "白", "黒番", "白番", "先手", "後手", "?", "??", "???", "-")
+
+    /** 名前の代わりに入れてある "Black" や "??" のような仮の名前か */
+    fun isPlaceholderName(name: String): Boolean = name.trim().lowercase() in placeholderNames
+
+    /**
+     * 対局名 (GN) から (黒, 白) の対局者名を読む。読めなければ null。
+     * 「明治29年4月19日　先　安井算英　本因坊秀栄」(先の次が黒、その次が白) や
+     * 「黒 A 白 B」「A(先) 対 B」のような書き方を読む
+     */
+    fun namesFromGameName(gn: String): Pair<String, String>? {
+        val tokens = gn.trim().split(Regex("""[\s　]+""")).filter { it.isNotEmpty() }
+        // 「黒 A 白 B」「黒:A 白:B」
+        Regex("""黒[\s　:：]*([^\s　]+)[\s　]+白[\s　:：]*([^\s　]+)""").find(gn)?.let {
+            return it.groupValues[1] to it.groupValues[2]
+        }
+        // 「先 A B」「定先 A B」「先番 A B」: 先の次が黒番、その次が白番
+        val sen = tokens.indexOfFirst { it == "先" || it == "定先" || it == "先番" || it == "互先" || it == "先相先" }
+        if (sen >= 0 && sen + 2 < tokens.size) return tokens[sen + 1] to tokens[sen + 2]
+        // 「A(先) 対 B」「A（先）vs B」: (先) の付いた方が黒番
+        val vs = tokens.indexOfFirst { it == "対" || it.equals("vs", true) || it.equals("vs.", true) }
+        if (vs in 1 until tokens.size - 1) {
+            val senMark = Regex("""[(（]先[)）]$""")
+            val a = tokens[vs - 1]; val b = tokens[vs + 1]
+            if (senMark.containsMatchIn(a)) return a.replace(senMark, "") to b
+            if (senMark.containsMatchIn(b)) return b.replace(senMark, "") to a
+        }
+        return null
     }
 
     /** "B+3.5" / "W+R" / "B+T" / "B+F" / "0" 以外の書き方 ("B+Resign", "B+Time", "B+Illegal", "Draw" など) をそろえる */

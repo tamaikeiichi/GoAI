@@ -73,4 +73,17 @@ class SgfTest {
         val r = SgfParser.parse(sgf)
         assertEquals(Move.Play(15, 3), r.root.children[0].move?.move)
     }
+
+    @Test
+    fun namesFromGameNameWhenPlayersArePlaceholders() {
+        val sgf = "(;GM[1]SZ[19]GN[明治29年4月19日　先　安井算英　本因坊秀栄]PB[Black]PW[White];B[pd])"
+        val r = SgfParser.parse(sgf)
+        assertEquals("安井算英", r.blackName)
+        assertEquals("本因坊秀栄", r.whiteName)
+        assertEquals("A" to "B", SgfParser.namesFromGameName("黒 A 白 B"))
+        assertEquals("A" to "B", SgfParser.namesFromGameName("第1局 B 対 A(先)"))
+        assertEquals(null, SgfParser.namesFromGameName("第1局"))
+        // PB・PW に本当の名前があればそちらを使う
+        assertEquals("X", SgfParser.parse("(;SZ[9]GN[先 A B]PB[X]PW[Y];B[ee])").blackName)
+    }
 }
