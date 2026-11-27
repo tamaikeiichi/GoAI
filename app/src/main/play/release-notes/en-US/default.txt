@@ -1,3 +1,4 @@
-• Play on OGS: play people online on online-go.com (OGS) from "Play on OGS" at the top of the menu. You can change the game settings (board size, speed, time control, rules, handicap and opponent's rank) while looking for an opponent.
-• During an OGS game the AI is turned off, because the OGS rules forbid computer help in ongoing games. You can analyze the game after it ends.
-• The komi is now shown next to the captures, and the rules are shown under the board.
+• The app is now called "Go Game Analysis+OGS".
+• New menu items "Delete last move" and "Undo delete" (undo as many times as you like). "Reset" is now "New board".
+• SGF files from shared URLs, and SGF files with a line break between "(" and ";", now open.
+• When the player names are placeholders such as "Black" and "White", the names are read from the game name.
