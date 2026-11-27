@@ -1,3 +1,6 @@
 用 KataGo 下圍棋並分析棋局。
-完全免費，無需註冊，無廣告，開源。
+可用 OGS (online-go.com) 帳戶與世界各地的棋手對弈。
+根據 OGS 的規定，OGS 對局中不能使用 AI。
+完全免費，無廣告，開源。分析及與 KataGo 對弈無需註冊。
+本應用程式並非 OGS 官方應用程式。
 https://github.com/tamaikeiichi/GoAI

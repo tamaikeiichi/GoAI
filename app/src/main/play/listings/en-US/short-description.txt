@@ -1,1 +1,1 @@
-Play Go (Baduk) against KataGo
+Analyze Go (Baduk) games with KataGo and play people on OGS

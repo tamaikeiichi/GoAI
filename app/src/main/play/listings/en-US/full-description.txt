@@ -1,3 +1,6 @@
 Play and analyze Go games with KataGo.
-Completely free, no registration, ad-free, and open source.
+Play people around the world with your OGS (online-go.com) account.
+Following the OGS terms of service, the AI is turned off during OGS games.
+Completely free, ad-free, and open source. No registration needed for analysis and games against KataGo.
+This is not an official OGS app.
 https://github.com/tamaikeiichi/GoAI

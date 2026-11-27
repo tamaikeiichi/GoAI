@@ -1,3 +1,6 @@
 KataGoを用いて，解析・対局ができます
-完全無料，登録不要，オープンソース
+OGS (online-go.com) のアカウントで，世界中の人と対局できます
+OGS の規約に従い，OGS での対局中は AI を使えません
+完全無料，広告なし，オープンソース (解析・KataGoとの対局は登録不要)
+OGS の公式アプリではありません
 https://github.com/tamaikeiichi/GoAI
