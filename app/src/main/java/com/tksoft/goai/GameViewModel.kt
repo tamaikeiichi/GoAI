@@ -99,6 +99,9 @@ data class GameResult(
     val ownershipBlack: List<Double>? = null,
 )
 
+/** OGS で手を送ってから、サーバーから返ってくるのをこれだけ待ち、来なければ接続を確かめる */
+private const val OGS_MOVE_ECHO_WAIT_MS = 3_000L
+
 class GameViewModel(application: Application) : AndroidViewModel(application), OgsClient.Listener {
     // 盤の大きさによって使うネットが違うので、ネットを変えるときはエンジンを作り直す
     private var engine = KataGoEngine()
@@ -365,6 +368,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
     /** 今の局面が本譜か変化図の最後の手で、「1手削除」できるか */
     val canDeleteLastMove: Boolean
         get() = ogsGame == null && currentNode.parent != null && currentNode.continuationChild() == null
+
+    /** 今の局面が本譜から外れた分岐 (変化図・読み筋) の上にあり、「分岐を削除」できるか */
+    val canDeleteBranches: Boolean
+        get() {
+            if (ogsGame != null) return false
+            var n = currentNode.root
+            for (next in currentNode.pathFromRoot().drop(1)) {
+                if (n.children.firstOrNull { !it.isPvBranch } !== next) return true
+                n = next
+            }
+            return false
+        }
 
     /** 「元に戻す」で戻せる削除があるか (別の棋譜を開いたら、前の棋譜の削除は戻せない) */
     val canUndoDelete: Boolean get() = deletions.lastOrNull()?.root === currentNode.root
@@ -1025,6 +1040,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
 
     private val ogsPrefs = application.getSharedPreferences("ogs", Context.MODE_PRIVATE)
     private val ogs = OgsClient(
+        application,
         viewModelScope,
         runCatching { application.packageManager.getPackageInfo(application.packageName, 0).versionName }.getOrNull() ?: "",
         this,
@@ -1047,6 +1063,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         private set
     private var ogsSearchUuid: String? = null
     /** OGS で対局中の1局 */
+    /** OGS につながっているか。対局中に切れたら盤の上に「再接続中」を出す */
+    var ogsConnected by mutableStateOf(false)
+        private set
     var ogsGame by mutableStateOf<OgsGame?>(null)
         private set
     /** 持ち時間の表示を進めるための時計 (サーバーの時刻。対局中だけ進める) */
@@ -1153,6 +1172,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         ogs.send("game/connect", JSONObject().put("game_id", id).put("chat", false))
 
     override fun onOgsConnection(connected: Boolean) {
+        ogsConnected = connected
         if (!connected) return
         // つなぎ直したら、対局と、探している途中のマッチングを送り直す
         val g = ogsGame
@@ -1271,7 +1291,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
             else -> null
         }
         val moves = obj.optJSONArray("moves")
+        val before = g.moves.size
         g.moves = (0 until (moves?.length() ?: 0)).mapNotNull { i -> moves?.optJSONArray(i)?.let { OgsCoord.decodeMove(it) } }
+        // つなぎ直して受け取り直したら、送った手がサーバーに届いていなかった (切れた接続で消えた)
+        if (g.pending != null && g.loaded && g.moves.size <= before) message = str(R.string.ogs_move_not_delivered)
         g.pending = null
         g.phase = OgsPhase.of(obj.optString("phase"))
         obj.optJSONObject("clock")?.let { onOgsClock(g, it) }
@@ -1374,6 +1397,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application), O
         g.pending = move
         ogs.send("game/move", JSONObject().put("game_id", g.id).put("move", OgsCoord.encode(move)))
         syncOgsTree(g)
+        // しばらくしても返ってこなければ、接続が生きているかすぐ確かめる (切れていればつなぎ直す)
+        viewModelScope.launch {
+            delay(OGS_MOVE_ECHO_WAIT_MS)
+            if (g.pending === move && ogsGame === g) ogs.checkNow()
+        }
     }
 
     private fun ogsResign(g: OgsGame) {

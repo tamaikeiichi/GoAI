@@ -1,6 +1,9 @@
 package com.tksoft.goai
 
+import android.content.Context
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.Network
 import android.util.Log
 import android.webkit.CookieManager
 import kotlinx.coroutines.CoroutineScope
@@ -178,6 +181,7 @@ object OgsCoord {
  * 切れたら少しずつ間を空けてつなぎ直す (OGS は頻繁な再接続を控えるよう求めている)
  */
 class OgsClient(
+    private val context: Context,
     private val scope: CoroutineScope,
     /** authenticate で OGS に知らせるこのアプリの版 */
     private val clientVersion: String,
@@ -208,6 +212,13 @@ class OgsClient(
     private val queue = mutableListOf<String>()
     private var latency = 0L
     private var drift = 0L
+    /** 最後に net/pong を受け取った時刻 (つながった時刻から数え始める) */
+    private var lastPongAt = 0L
+    /** checkNow で送った確認の時刻 (その後に pong が来れば 0 に戻す) */
+    private var probeSentAt = 0L
+    /** 回線の切り替わりを見るため、今使っている回線 */
+    private var currentNetwork: Network? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     /**
      * WebView に残っている OGS のセッションで利用者の情報と JWT を読む。ログインしていなければ null。
@@ -263,12 +274,25 @@ class OgsClient(
     /** WebSocket につなぐ (つながっていればそのまま) */
     fun connect() {
         wantConnected = true
+        watchNetwork()
         if (socket == null) open()
+    }
+
+    /**
+     * 自分の手を送ったのにサーバーから返ってこないときなどに、すぐ生存確認を送る。
+     * PROBE_TIMEOUT_MS のうちに返事が無ければ、切れたとみなしてつなぎ直す
+     */
+    fun checkNow() {
+        val ws = socket ?: return
+        if (!connected || probeSentAt != 0L) return
+        probeSentAt = System.currentTimeMillis()
+        sendPing(ws)
     }
 
     /** WebSocket を切る。送っていないメッセージは捨てる */
     fun disconnect() {
         wantConnected = false
+        unwatchNetwork()
         reconnectJob?.cancel()
         pingJob?.cancel()
         queue.clear()
@@ -307,6 +331,8 @@ class OgsClient(
                     if (socket !== webSocket) return@launch
                     connected = true
                     reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+                    lastPongAt = System.currentTimeMillis()
+                    probeSentAt = 0L
                     webSocket.send(
                         JSONArray().put("authenticate").put(
                             JSONObject().put("jwt", jwt).put("client", "goai").put("client_version", clientVersion)
@@ -347,6 +373,15 @@ class OgsClient(
         })
     }
 
+    /** 返事の無い接続を捨てて、すぐにつなぎ直す */
+    private fun dropAndReconnect(webSocket: WebSocket) {
+        if (socket !== webSocket) return
+        Log.w("GoAI", "OGS socket is not responding; reconnecting")
+        reconnectDelayMs = 0L
+        webSocket.cancel() // onFailure から onLost に来て、つなぎ直す
+        onLost(webSocket)
+    }
+
     private fun onLost(webSocket: WebSocket) {
         scope.launch(Dispatchers.Main) {
             if (socket !== webSocket) return@launch
@@ -358,7 +393,7 @@ class OgsClient(
             }
             if (!wantConnected) return@launch
             val wait = reconnectDelayMs
-            reconnectDelayMs = (reconnectDelayMs * 2).coerceAtMost(MAX_RECONNECT_DELAY_MS)
+            reconnectDelayMs = (reconnectDelayMs * 2).coerceIn(INITIAL_RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS)
             reconnectJob = scope.launch {
                 delay(wait)
                 if (wantConnected && socket == null) open()
@@ -366,23 +401,82 @@ class OgsClient(
         }
     }
 
-    /** 接続の生存確認と、サーバーとの時計のずれ (持ち時間の表示に使う) の測定 */
+    /**
+     * 接続の生存確認と、サーバーとの時計のずれ (持ち時間の表示に使う) の測定。
+     * PING_INTERVAL_MS ごとに net/ping を送り、PONG_TIMEOUT_MS のあいだ返事が無ければ
+     * (回線の切り替わりなどで、切れたことが端末に分からないまま止まっている) 接続を捨ててつなぎ直す
+     */
     private fun startPing(webSocket: WebSocket) {
         pingJob?.cancel()
-        pingJob = scope.launch {
+        pingJob = scope.launch(Dispatchers.Main) {
+            var nextPingAt = 0L
             while (isActive && socket === webSocket) {
-                webSocket.send(
-                    JSONArray().put("net/ping").put(
-                        JSONObject().put("client", System.currentTimeMillis()).put("drift", drift).put("latency", latency)
-                    ).toString()
-                )
-                delay(PING_INTERVAL_MS)
+                val now = System.currentTimeMillis()
+                val probeExpired = probeSentAt != 0L && now - probeSentAt > PROBE_TIMEOUT_MS
+                if (now - lastPongAt > PONG_TIMEOUT_MS || probeExpired) {
+                    dropAndReconnect(webSocket)
+                    return@launch
+                }
+                if (now >= nextPingAt) {
+                    sendPing(webSocket)
+                    nextPingAt = now + PING_INTERVAL_MS
+                }
+                delay(WATCHDOG_TICK_MS)
             }
         }
     }
 
+    private fun sendPing(webSocket: WebSocket) {
+        webSocket.send(
+            JSONArray().put("net/ping").put(
+                JSONObject().put("client", System.currentTimeMillis()).put("drift", drift).put("latency", latency)
+            ).toString()
+        )
+    }
+
+    /**
+     * 回線が切り替わった (Wi-Fi からモバイル回線へなど) り戻ったりしたら、待たずにすぐつなぎ直す。
+     * 切り替わる前の接続は、端末からは切れたと分からないまま使えなくなっていることが多い
+     */
+    private fun watchNetwork() {
+        if (networkCallback != null) return
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                scope.launch(Dispatchers.Main) {
+                    val previous = currentNetwork
+                    currentNetwork = network
+                    if (!wantConnected || previous == network) return@launch
+                    reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
+                    val ws = socket
+                    when {
+                        ws == null -> { reconnectJob?.cancel(); open() }
+                        // 前の回線で張った接続は使えないことが多いので、張り直す
+                        previous != null -> dropAndReconnect(ws)
+                    }
+                }
+            }
+
+            override fun onLost(network: Network) {
+                scope.launch(Dispatchers.Main) { if (currentNetwork == network) currentNetwork = null }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
+            .onSuccess { networkCallback = callback }
+            .onFailure { Log.w("GoAI", "cannot watch network", it) }
+    }
+
+    private fun unwatchNetwork() {
+        val callback = networkCallback ?: return
+        networkCallback = null
+        currentNetwork = null
+        runCatching { context.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(callback) }
+    }
+
     private fun onPong(data: JSONObject) {
         val now = System.currentTimeMillis()
+        lastPongAt = now
+        probeSentAt = 0L
         val client = data.optLong("client", now)
         val server = data.optLong("server", now)
         latency = now - client
@@ -393,7 +487,12 @@ class OgsClient(
     fun serverNow(): Long = System.currentTimeMillis() - drift
 
     companion object {
-        private const val PING_INTERVAL_MS = 10_000L
+        private const val PING_INTERVAL_MS = 5_000L
+        /** これだけ pong が来なければ、切れたとみなす (ping 3回ぶん) */
+        private const val PONG_TIMEOUT_MS = 15_000L
+        /** checkNow の確認に、これだけ返事が無ければ切れたとみなす */
+        private const val PROBE_TIMEOUT_MS = 5_000L
+        private const val WATCHDOG_TICK_MS = 1_000L
         private const val INITIAL_RECONNECT_DELAY_MS = 3_000L
         private const val MAX_RECONNECT_DELAY_MS = 60_000L
 

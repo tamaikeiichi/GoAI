@@ -142,4 +142,6 @@
     <string name="scroll_down">下へスクロール</string>
     <string name="menu_delete_last_move">1手削除</string>
     <string name="menu_undo_delete">元に戻す</string>
+    <string name="ogs_reconnecting">OGS に再接続中…</string>
+    <string name="ogs_move_not_delivered">手が OGS に届かなかったので、もう一度打ってください</string>
 </resources>

@@ -142,4 +142,6 @@
     <string name="scroll_down">Scroll down</string>
     <string name="menu_delete_last_move">Delete last move</string>
     <string name="menu_undo_delete">Undo delete</string>
+    <string name="ogs_reconnecting">Reconnecting to OGS…</string>
+    <string name="ogs_move_not_delivered">Your move did not reach OGS. Please play it again.</string>
 </resources>

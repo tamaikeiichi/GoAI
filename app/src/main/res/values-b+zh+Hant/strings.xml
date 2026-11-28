@@ -142,4 +142,6 @@
     <string name="scroll_down">向下捲動</string>
     <string name="menu_delete_last_move">刪除一手</string>
     <string name="menu_undo_delete">復原刪除</string>
+    <string name="ogs_reconnecting">正在重新連線 OGS…</string>
+    <string name="ogs_move_not_delivered">這一手沒有送達 OGS，請重新落子。</string>
 </resources>

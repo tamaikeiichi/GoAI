@@ -142,4 +142,6 @@
     <string name="scroll_down">向下滚动</string>
     <string name="menu_delete_last_move">删除一手</string>
     <string name="menu_undo_delete">撤销删除</string>
+    <string name="ogs_reconnecting">正在重新连接 OGS…</string>
+    <string name="ogs_move_not_delivered">这一手没有送达 OGS，请重新落子。</string>
 </resources>

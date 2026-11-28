@@ -18,6 +18,23 @@ val sliderThumbOutlineColor = Color(0xFFF4F1DE)
 val sliderDotColor = Color(0xFF24171A)
 val sliderDotOutlineColor = Color(0xFFF4F1DE)
 
-// 形勢グラフに重ねる目数の折れ線の色と、振り切れる目数
+// 形勢グラフに重ねる目数の折れ線の色
 val scoreLineColor = Color(0xFFD90429)
-const val MAX_SCORE_LEAD_ON_GRAPH = 20.0
+
+/** 形勢グラフで目数の折れ線が振り切れる目数。盤が小さいほど1目の重みが大きいので、小さくする */
+fun maxScoreLeadOnGraph(boardSize: Int): Double = when {
+    boardSize <= 9 -> 10.0
+    boardSize <= 13 -> 20.0
+    else -> 30.0
+}
+
+/**
+ * 目数を形勢グラフの高さ (-1〜1、上が黒のリード) にする。
+ * 小さな差も見えるよう対数で縮め (ln(1 + 目数) / ln(1 + 振り切れる目数))、振り切れる目数で 1 にする。
+ * 9路なら 1目で 3割、5目で 7割半、19路なら 1目で 2割、5目で 5割、10目で 7割
+ */
+fun scoreLeadToGraph(lead: Double, boardSize: Int): Float {
+    val max = maxScoreLeadOnGraph(boardSize)
+    val v = kotlin.math.ln(1 + kotlin.math.abs(lead)) / kotlin.math.ln(1 + max)
+    return (kotlin.math.sign(lead) * v).toFloat().coerceIn(-1f, 1f)
+}

@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- OGS (online-go.com) での対局だけに使う -->
+    <!-- OGS (online-go.com) での対局と、共有された URL からの棋譜の取得に使う -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- OGS の対局中に回線が切り替わったら、すぐつなぎ直すため -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"

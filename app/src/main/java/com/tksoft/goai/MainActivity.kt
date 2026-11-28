@@ -477,6 +477,12 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
 
         ThinkingOverlay(vm)
 
+        // OGS の対局中に接続が切れたら、つなぎ直しているあいだ画面の上に出す
+        val og = vm.ogsGame
+        if (og != null && og.phase != OgsPhase.FINISHED && !vm.ogsConnected) {
+            OgsReconnectingBanner(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp))
+        }
+
         // OGS の整地: 死に石をタップで選び、同意する
         if (vm.ogsGame?.phase == OgsPhase.STONE_REMOVAL && vm.ogsGame?.myColor != null) {
             OgsStoneRemovalCard(
@@ -541,7 +547,11 @@ fun GameScreen(onAbout: () -> Unit, vm: GameViewModel = viewModel()) {
                     showMenu = false
                     vm.deleteLastMove()
                 }
-                MenuItem(Icons.Outlined.ContentCut, text = { Text(stringResource(R.string.menu_delete_branches)) }) {
+                MenuItem(
+                    Icons.Outlined.ContentCut,
+                    text = { Text(stringResource(R.string.menu_delete_branches)) },
+                    enabled = vm.canDeleteBranches,
+                ) {
                     showMenu = false
                     vm.deleteBranches()
                 }

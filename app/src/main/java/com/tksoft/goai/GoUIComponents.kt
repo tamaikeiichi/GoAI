@@ -453,10 +453,10 @@ private fun KifuTreeView(
             drawLine(barColor, c, Offset(c.x, c.y - normalized * barHalfPx()), strokeWidth = barWidth)
         }
 
-        // 目数の折れ線グラフ (棒グラフに重ねる): 黒のリードを上、白のリードを下にとり、20 目で振り切れ。
-        // 分岐も含め、親の手と線で結ぶ
-        fun leadY(i: Int): Float? = layout.nodes[i].scoreLeadBlack?.let {
-            pos(i).y - (it / MAX_SCORE_LEAD_ON_GRAPH).toFloat().coerceIn(-1f, 1f) * barHalfPx()
+        // 目数の折れ線グラフ (棒グラフに重ねる): 黒のリードを上、白のリードを下にとる。
+        // 対数で縮め、盤の大きさごとの目数 (9路 10目・13路 20目・19路 30目) で振り切れ。分岐も含め、親の手と線で結ぶ
+        fun leadY(i: Int): Float? = layout.nodes[i].let { n ->
+            n.scoreLeadBlack?.let { pos(i).y - scoreLeadToGraph(it, n.game.size) * barHalfPx() }
         }
         val leadStroke = 1.5.dp.toPx()
         for (i in layout.nodes.indices) {
